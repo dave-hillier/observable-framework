@@ -97,7 +97,7 @@ export function compileCellToComponent(cell: MarkdownCode, options: CellCompileO
  */
 function compileExpressionCell(
   source: string,
-  declarations: string[],
+  _declarations: string[],
   cellInputs: string[],
   builtinInputs: string[],
   isAsync: boolean,
@@ -165,7 +165,7 @@ function compileProgramCell(
   cellInputs: string[],
   builtinInputs: string[],
   isAsync: boolean,
-  mode: string | undefined
+  _mode: string | undefined
 ): string[] {
   const lines: string[] = [];
   const deps = [...cellInputs, ...builtinInputs.filter((b) => b !== "display" && b !== "view")];
@@ -237,7 +237,7 @@ function compileProgramCell(
  * Observable: `The total is ${total.toLocaleString()}.`
  * React: `The total is {total?.toLocaleString()}.`
  */
-export function compileInlineCellToExpression(source: string, references: string[]): string {
+export function compileInlineCellToExpression(source: string, _references: string[]): string {
   // For inline expressions, we just need the expression value
   // The references will be resolved from the cell context
   const trimmed = source.trim().replace(/;$/, "");
@@ -255,7 +255,7 @@ export function compileInlineCellToExpression(source: string, references: string
 export function compileViewCell(
   name: string,
   inputExpression: string,
-  options: CellCompileOptions
+  _options: CellCompileOptions
 ): string {
   // This is a specialized compilation for the common view() pattern
   // The input expression should be recognized and transformed into a React controlled component

@@ -60,6 +60,23 @@ export function DuckDBProvider({tables = {}, children}: DuckDBProviderProps) {
           return;
         }
 
+        // Register initial tables
+        const conn = await instance.connect();
+        try {
+          for (const [name, source] of Object.entries(tables)) {
+            if (typeof source === "string") {
+              await conn.query(`CREATE OR REPLACE TABLE "${name}" AS SELECT * FROM '${source}'`);
+            }
+          }
+        } finally {
+          await conn.close();
+        }
+
+        if (cancelled) {
+          await instance.terminate();
+          return;
+        }
+
         setDb(instance);
         setReady(true);
       } catch (err) {

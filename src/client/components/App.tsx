@@ -1,4 +1,4 @@
-import React, {lazy, Suspense, useCallback, useEffect, useState} from "react";
+import React, {Suspense, lazy, useCallback, useEffect, useState} from "react";
 import type {ReactNode} from "react";
 import {Loading} from "./Loading.js";
 import type {PageLayoutProps} from "./PageLayout.js";

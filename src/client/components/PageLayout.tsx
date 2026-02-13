@@ -1,4 +1,4 @@
-import React, {Suspense, useRef} from "react";
+import React, {Suspense, useEffect, useRef} from "react";
 import type {ReactNode} from "react";
 import {CellProvider} from "../hooks/useCellContext.js";
 import {ErrorBoundary} from "./ErrorBoundary.js";
@@ -70,6 +70,12 @@ export function PageLayout({
   children
 }: PageLayoutProps) {
   const mainRef = useRef<HTMLElement>(null);
+
+  // Update document title when page changes
+  useEffect(() => {
+    const fullTitle = [title, siteTitle].filter(Boolean).join(" | ");
+    if (fullTitle) document.title = fullTitle;
+  }, [title, siteTitle]);
 
   const tocConfig = typeof toc === "boolean" ? {show: toc, label: "Contents"} : {show: toc.show ?? true, label: toc.label ?? "Contents"};
 

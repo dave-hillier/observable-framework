@@ -1,5 +1,4 @@
 import type {Config} from "../config.js";
-import type {MarkdownPage} from "../markdown.js";
 
 /**
  * Generates the HTML shell for a React page.

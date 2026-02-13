@@ -1,6 +1,6 @@
-import type {MarkdownCode, MarkdownPage} from "../markdown.js";
+import type {MarkdownPage} from "../markdown.js";
 import type {Params} from "../route.js";
-import {compileCellToComponent, compileCellToExpression, compileInlineCellToExpression} from "./cell-transform.js";
+import {compileCellToComponent, compileInlineCellToExpression} from "./cell-transform.js";
 
 /**
  * Options for compiling a markdown page to React.
@@ -28,7 +28,7 @@ export interface CompileOptions {
  */
 export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptions): string {
   const {path, params, resolveImport = (s) => s, resolveFile = (s) => s} = options;
-  const {code, data} = page;
+  const {code} = page;
 
   // Collect all cell analysis info
   const cellInfos = code.map(({id, node, mode}) => ({

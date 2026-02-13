@@ -75,7 +75,7 @@ export function SelectInput<T = string>({
         size={size}
         disabled={disabled}
       >
-        {sortedOptions.map((option, i) => {
+        {sortedOptions.map((option) => {
           const originalIndex = options.indexOf(option);
           return (
             <option key={originalIndex} value={String(originalIndex)}>
