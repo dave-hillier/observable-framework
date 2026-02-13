@@ -33,21 +33,36 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   // Collect all cell analysis info
   const cellInfos = code.map(({id, node, mode}) => ({
     id,
-    mode,
+    mode: mode as "inline" | "block" | "jsx",
     declarations: node.declarations?.map((d) => d.name) ?? [],
     references: node.references.map((r) => r.name),
     expression: node.expression,
     async: node.async,
-    source: node.input
+    source: node.input,
+    imports: node.imports
   }));
 
-  // Determine which variables are declared across all cells
-  const allDeclarations = new Set(cellInfos.flatMap((c) => c.declarations));
+  // Identify import-only cells (cells that are purely import declarations)
+  const isImportOnly = (cell: (typeof cellInfos)[0]): boolean => {
+    if (cell.imports.length === 0) return false;
+    // Check if the source only contains import statements (no other code)
+    const withoutImports = cell.source
+      .replace(/import\s+(?:(?:\{[^}]+\}|\*\s+as\s+\w+|\w+)(?:\s*,\s*\{[^}]+\})?)\s+from\s+["'][^"']+["']\s*;?/g, "")
+      .trim();
+    return withoutImports === "";
+  };
+
+  // Determine which variables are declared across all cells (excluding import-only)
+  const allDeclarations = new Set(
+    cellInfos.filter((c) => !isImportOnly(c)).flatMap((c) => c.declarations)
+  );
 
   // Determine which built-in hooks are needed
   const needsWidth = cellInfos.some((c) => c.references.includes("width"));
   const needsDark = cellInfos.some((c) => c.references.includes("dark"));
   const needsNow = cellInfos.some((c) => c.references.includes("now"));
+  const needsDisplay = cellInfos.some((c) => c.references.includes("display"));
+  const needsView = cellInfos.some((c) => c.references.includes("view"));
 
   // Build imports section
   const imports: string[] = [];
@@ -60,18 +75,20 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   if (needsDark) imports.push(`import {useDark} from "@observablehq/framework/react/hooks";`);
   if (needsNow) imports.push(`import {useNow} from "@observablehq/framework/react/hooks";`);
 
-  // Collect imports from code cells
-  const cellImports = collectCellImports(cellInfos, resolveImport);
-  imports.push(...cellImports);
+  // Collect imports from code cells using the AST (not regex)
+  const cellImportStatements = collectCellImports(code, resolveImport);
+  imports.push(...cellImportStatements);
 
-  // Build cell components
+  // Identify which cells are import-only
+  const importOnlyCellIds = new Set(cellInfos.filter((c) => isImportOnly(c)).map((c) => c.id));
+
+  // Build cell components (skip import-only and inline cells)
   const cellComponents: string[] = [];
   for (const cellInfo of cellInfos) {
+    if (cellInfo.mode === "inline") continue;
+    if (importOnlyCellIds.has(cellInfo.id)) continue;
+
     const cell = code.find((c) => c.id === cellInfo.id)!;
-    if (cellInfo.mode === "inline") {
-      // Inline expressions don't need separate components
-      continue;
-    }
     const component = compileCellToComponent(cell, {
       allDeclarations,
       resolveImport,
@@ -83,7 +100,7 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   }
 
   // Build the page body by replacing cell markers with React elements
-  const pageBody = buildPageBody(page, cellInfos);
+  const pageBody = buildPageBody(page, cellInfos, importOnlyCellIds);
 
   // Build the page component
   const lines: string[] = [];
@@ -103,11 +120,8 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   if (needsWidth) lines.push(`  const [__mainRef, width] = useWidthRef();`);
   if (needsDark) lines.push(`  const dark = useDark();`);
   if (needsNow) lines.push(`  const now = useNow();`);
-
-  // State declarations for all cell outputs
-  for (const name of allDeclarations) {
-    if (name === "width" || name === "dark" || name === "now") continue;
-    lines.push(`  const [${name}, set_${name}] = useState(undefined);`);
+  if (needsDisplay || needsView) {
+    // suppress lint: these are used implicitly in compiled cell code
   }
 
   lines.push("");
@@ -128,29 +142,31 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
 }
 
 /**
- * Collects import statements from code cells and transforms them into
- * ES import declarations for the React module.
+ * Collects import statements from code cells using the parsed AST import info.
+ * Extracts the import source text and resolves specifiers.
  */
 function collectCellImports(
-  cellInfos: Array<{source: string; references: string[]}>,
+  code: MarkdownPage["code"],
   resolveImport: (specifier: string) => string
 ): string[] {
   const imports: string[] = [];
   const seenSpecifiers = new Set<string>();
 
-  for (const cell of cellInfos) {
-    // Extract import declarations from cell source using regex
-    // This is a simplified version; the full implementation would use the AST
-    const importRegex = /import\s+(?:(\{[^}]+\}|\*\s+as\s+\w+|\w+)(?:\s*,\s*(\{[^}]+\}))?)\s+from\s+["']([^"']+)["']/g;
-    let match;
-    while ((match = importRegex.exec(cell.source)) !== null) {
-      const specifier = match[3];
-      if (!seenSpecifiers.has(specifier)) {
-        seenSpecifiers.add(specifier);
-        const resolved = resolveImport(specifier);
-        // Reconstruct the import with resolved specifier
-        const importStr = cell.source.slice(match.index, match.index + match[0].length)
-          .replace(specifier, resolved);
+  for (const cell of code) {
+    for (const imp of cell.node.imports) {
+      if (imp.method !== "static") continue;
+      if (seenSpecifiers.has(imp.name)) continue;
+      seenSpecifiers.add(imp.name);
+
+      const resolved = resolveImport(imp.name);
+      // Extract the actual import statement from the cell source
+      const importRegex = new RegExp(
+        `import\\s+(?:(?:\\{[^}]+\\}|\\*\\s+as\\s+\\w+|\\w+)(?:\\s*,\\s*\\{[^}]+\\})?)\\s+from\\s+["']${escapeRegex(imp.name)}["']`,
+        "g"
+      );
+      const match = importRegex.exec(cell.node.input);
+      if (match) {
+        const importStr = match[0].replace(imp.name, resolved);
         imports.push(importStr + ";");
       }
     }
@@ -159,25 +175,22 @@ function collectCellImports(
   return imports;
 }
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * Transforms the page HTML body, replacing Observable cell markers
  * (<!--:cellId:--> comments) with React component references.
  */
 function buildPageBody(
   page: MarkdownPage,
-  cellInfos: Array<{id: string; mode: string; expression: boolean; source: string; declarations: string[]; references: string[]}>
+  cellInfos: {id: string; mode: string; expression: boolean; source: string; declarations: string[]; references: string[]}[],
+  importOnlyCellIds: Set<string>
 ): string {
   let body = page.body;
 
-  // Build a map of cell IDs to their component JSX
   for (const cell of cellInfos) {
-    // Match the Observable cell pattern:
-    // <div class="observablehq observablehq--block">
-    //   <observablehq-loading></observablehq-loading>
-    //   <!--:cellId:-->
-    // </div>
-    // or inline: <observablehq-loading></observablehq-loading><!--:cellId:-->
-
     if (cell.mode === "inline") {
       // Replace inline expression markers with JSX expression
       const inlineExpr = compileInlineCellToExpression(cell.source, cell.references);
@@ -185,14 +198,31 @@ function buildPageBody(
         `<observablehq-loading><\\/observablehq-loading><!--:${cell.id}:-->`,
         "g"
       );
-      body = body.replace(pattern, `{/* inline cell ${cell.id} */}\n        {${inlineExpr}}`);
+      body = body.replace(pattern, `{${inlineExpr}}`);
+    } else if (importOnlyCellIds.has(cell.id)) {
+      // Import-only cells: remove the entire block div
+      const blockPattern = new RegExp(
+        `<div className="observablehq observablehq--block">[\\s\\S]*?<!--:${cell.id}:-->[\\s\\S]*?<\\/div>`,
+        "g"
+      );
+      body = body.replace(blockPattern, "");
+      // Also try the original class= form (before htmlToJsx)
+      const blockPatternOrig = new RegExp(
+        `<div class="observablehq observablehq--block">[\\s\\S]*?<!--:${cell.id}:-->[\\s\\S]*?<\\/div>`,
+        "g"
+      );
+      body = body.replace(blockPatternOrig, "");
     } else {
-      // Replace block cell markers with component references
+      // Replace block cell markers with component references.
+      // Two patterns: with loading indicator (expression cells) and without (declaration cells)
       const blockPattern = new RegExp(
         `<div class="observablehq observablehq--block">[\\s\\S]*?<!--:${cell.id}:-->[\\s\\S]*?<\\/div>`,
         "g"
       );
-      body = body.replace(blockPattern, `{/* cell ${cell.id} */}\n        <ErrorBoundary><Suspense fallback={<Loading />}><Cell_${cell.id} /></Suspense></ErrorBoundary>`);
+      body = body.replace(
+        blockPattern,
+        `<ErrorBoundary><Suspense fallback={<Loading />}><Cell_${cell.id} /></Suspense></ErrorBoundary>`
+      );
     }
   }
 
