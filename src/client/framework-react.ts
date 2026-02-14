@@ -25,5 +25,5 @@ export {useWidth, useWidthRef} from "./hooks/useWidth.js";
 export {useDark} from "./hooks/useDark.js";
 export {useNow} from "./hooks/useNow.js";
 
-// Data loading hooks
-export {useFileAttachment, useFileData} from "./hooks/useFileAttachment.js";
+// Data loading hooks & file format classes
+export {useFileAttachment, useFileData, SQLiteDatabaseClient, Workbook, ZipArchive, ZipArchiveEntry} from "./hooks/useFileAttachment.js";

@@ -1,25 +1,55 @@
-# Phase 7: Production Correctness — FileAttachment, Head Injection, Base Path, and Inline Expressions
+# Phase 8: FileAttachment Format Completeness & Data Loaders
 
 ## Overview
 
-Phase 6 addressed search and missing FileAttachment formats. This phase fixes
-**correctness issues** that would cause real-world React builds to break:
+Implements the remaining FileAttachment format methods and verifies data loader
+integration for React mode.
 
-1. **FileAttachment registration** — The React build doesn't emit `registerFile()`
-   calls, so `FileAttachment("data.csv")` silently fails in production.
-2. **Custom `<head>` content** — Config/page `head` option (analytics, fonts, etc.)
-   is completely missing from the React shell.
-3. **Base path routing** — Deploying to a subpath like `/myapp/` breaks navigation
-   because `matchPath()` doesn't strip the base prefix.
-4. **Inline expressions** — `${variable}` in markdown body compiles to static text
-   rather than reactive JSX that updates when variables change.
+## What was done
 
-These are all blockers for real deployments.
+### 8.1: SQLite support — `file.sqlite()`
+- Implemented `SQLiteDatabaseClient` class mirroring `src/client/stdlib/sqlite.js`
+- Dynamically imports `sql.js` with WASM locator via `import.meta.resolve`
+- Full API: `query()`, `queryRow()`, `explain()`, `describeTables()`,
+  `describeColumns()`, `sql()` tagged template, `dialect` property
+- Singleton promise pattern for lazy initialization
 
-## Tasks
+### 8.2: XLSX support — `file.xlsx()`
+- Implemented `Workbook` class mirroring `src/client/stdlib/xlsx.js`
+- Dynamically imports `exceljs` at first use
+- `Workbook.load(buffer)` → `workbook.sheet(name, {range, headers})`
+- Full cell value extraction (formulas, rich text, hyperlinks)
+- Range parsing (A1:Z10 format), header row support, duplicate column handling
 
-### 7.1: Emit file registration in React page modules
-### 7.2: Include custom `<head>` content in the React shell
-### 7.3: Fix base path handling in App router
-### 7.4: Wire inline expressions to reactive cell state
-### 7.5–7.6: Tests
+### 8.3: ZIP support — `file.zip()`
+- Implemented `ZipArchive` and `ZipArchiveEntry` classes mirroring `src/client/stdlib/zip.js`
+- Dynamically imports `jszip` at first use
+- `ZipArchive.from(buffer)` → `archive.file(path)`, `archive.filenames`
+- `ZipArchiveEntry` with `url()`, `blob()`, `arrayBuffer()`, `text()`, `json()`
+
+### 8.4: Additional methods for feature parity
+- `dsv({delimiter, typed, array})` — generic delimiter-separated values
+- `csv()` and `tsv()` now delegate to `dsv()` for consistency
+- `xml(mimeType)` — parse as XML via DOMParser
+- `html()` — parse as HTML (delegates to xml with text/html)
+- Improved `arrow()` to use arrayBuffer instead of Response
+- Added fetch error checking (`response.ok`) to all fetch-based methods
+- Added cross-origin handling for `image()`
+
+### 8.5: Data loaders verification
+- Data loaders already work in React mode — the `/_file/` handler in `preview.ts`
+  is shared between standard and React modes
+- Production builds use the same `loaders.find()` system
+- No changes needed
+
+### 8.6: Tests
+- 12 new tests in `test/react-file-attachment-test.ts`
+- API surface completeness, url resolution, register/unregister
+- Class structure verification for SQLiteDatabaseClient, Workbook, ZipArchive, ZipArchiveEntry
+- All 77 React tests pass (37 compile + 23 render + 5 build + 12 file attachment)
+
+## Remaining gaps
+
+- **Search**: Sidebar search input captures state but doesn't query minisearch.json
+- **Theme toggle**: Only system preference, no user-initiated switching
+- **Granular HMR**: React preview does full page reload instead of cell-level patches
