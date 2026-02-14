@@ -2,6 +2,7 @@ import assert from "node:assert";
 import {generateReactPageShell} from "../src/react/page-template.js";
 import {extractStaticHtml} from "../src/react/ssr.js";
 import {compileMarkdownToReact} from "../src/react/compile.js";
+import {normalizeConfig} from "../src/config.js";
 import type {MarkdownPage} from "../src/markdown.js";
 
 // =============================================================================
@@ -273,5 +274,161 @@ describe("SQL front-matter compile integration", () => {
     assert.ok(output.includes("DuckDBProvider"), "should include DuckDBProvider");
     assert.ok(output.includes("/data/raw.csv"), "should include file path source");
     assert.ok(output.includes("SELECT region"), "should include SQL query source");
+  });
+});
+
+// =============================================================================
+// FileInput component
+// =============================================================================
+
+describe("FileInput component", () => {
+  it("FileInput component exists and is exported", async () => {
+    const mod = await import("../src/client/components/inputs/FileInput.js");
+    assert.strictEqual(typeof mod.FileInput, "function");
+  });
+
+  it("FileInput is re-exported from inputs index", async () => {
+    const mod = await import("../src/client/components/inputs/index.js");
+    assert.strictEqual(typeof mod.FileInput, "function");
+  });
+});
+
+// =============================================================================
+// React config options (strict, suspense)
+// =============================================================================
+
+describe("React config options", () => {
+  it("defaults reactOptions to strict=false, suspense=true", () => {
+    const config = normalizeConfig({react: true, root: "docs"});
+    assert.strictEqual(config.react, true);
+    assert.strictEqual(config.reactOptions.strict, false);
+    assert.strictEqual(config.reactOptions.suspense, true);
+  });
+
+  it("accepts react as boolean true (backward compatible)", () => {
+    const config = normalizeConfig({react: true, root: "docs"});
+    assert.strictEqual(config.react, true);
+    assert.strictEqual(config.reactOptions.strict, false);
+  });
+
+  it("accepts react as boolean false", () => {
+    const config = normalizeConfig({react: false, root: "docs"});
+    assert.strictEqual(config.react, false);
+    assert.strictEqual(config.reactOptions.strict, false);
+    assert.strictEqual(config.reactOptions.suspense, true);
+  });
+
+  it("accepts react as an object with strict and suspense", () => {
+    const config = normalizeConfig({react: {strict: true, suspense: false}, root: "docs"});
+    assert.strictEqual(config.react, true);
+    assert.strictEqual(config.reactOptions.strict, true);
+    assert.strictEqual(config.reactOptions.suspense, false);
+  });
+
+  it("defaults missing fields in react object", () => {
+    const config = normalizeConfig({react: {strict: true}, root: "docs"});
+    assert.strictEqual(config.react, true);
+    assert.strictEqual(config.reactOptions.strict, true);
+    assert.strictEqual(config.reactOptions.suspense, true);
+  });
+});
+
+// =============================================================================
+// React.StrictMode in page shell
+// =============================================================================
+
+describe("React.StrictMode support", () => {
+  it("wraps in StrictMode when strict is true", () => {
+    const html = generateReactPageShell({
+      title: "Test",
+      stylesheets: [],
+      modulePreloads: [],
+      pageModulePath: "/_observablehq/react-pages/test.js",
+      isPreview: false,
+      strict: true
+    });
+    assert.ok(html.includes("React.StrictMode"), "should include StrictMode wrapper");
+  });
+
+  it("does not wrap in StrictMode when strict is false", () => {
+    const html = generateReactPageShell({
+      title: "Test",
+      stylesheets: [],
+      modulePreloads: [],
+      pageModulePath: "/_observablehq/react-pages/test.js",
+      isPreview: false,
+      strict: false
+    });
+    assert.ok(!html.includes("StrictMode"), "should not include StrictMode");
+  });
+
+  it("does not wrap in StrictMode by default", () => {
+    const html = generateReactPageShell({
+      title: "Test",
+      stylesheets: [],
+      modulePreloads: [],
+      pageModulePath: "/_observablehq/react-pages/test.js",
+      isPreview: false
+    });
+    assert.ok(!html.includes("StrictMode"), "should not include StrictMode by default");
+  });
+
+  it("uses StrictMode in HMR re-render when strict is true", () => {
+    const html = generateReactPageShell({
+      title: "Test",
+      stylesheets: [],
+      modulePreloads: [],
+      pageModulePath: "/_observablehq/react-pages/test.js",
+      isPreview: true,
+      hash: "abc",
+      strict: true
+    });
+    // Should appear in both the initial render and the HMR re-render
+    const matches = html.match(/StrictMode/g);
+    assert.ok(matches && matches.length >= 2, "should use StrictMode in both initial and HMR renders");
+  });
+});
+
+// =============================================================================
+// Enhanced SSR (loading indicator removal)
+// =============================================================================
+
+describe("Enhanced SSR extraction", () => {
+  it("strips observablehq-loading elements", () => {
+    const page = {
+      body: "<h1>Title</h1>\n<observablehq-loading></observablehq-loading><!--:cell1:-->\n<p>Content</p>",
+      title: "Test",
+      head: null,
+      header: null,
+      footer: null,
+      code: [],
+      data: {toc: {show: true, label: "Contents"}, sql: {}},
+      style: null
+    } as unknown as MarkdownPage;
+
+    const html = extractStaticHtml(page);
+    assert.ok(!html.includes("observablehq-loading"), "should remove loading indicators");
+    assert.ok(html.includes("<h1>Title</h1>"), "should preserve headings");
+    assert.ok(html.includes("<p>Content</p>"), "should preserve paragraphs");
+  });
+});
+
+// =============================================================================
+// HMR module fixes
+// =============================================================================
+
+describe("HMR module", () => {
+  it("onHmrEvent returns an unsubscribe function", async () => {
+    const {onHmrEvent} = await import("../src/react/hmr.js");
+    const unsub = onHmrEvent("test-event", () => {});
+    assert.strictEqual(typeof unsub, "function");
+    unsub(); // should not throw
+  });
+
+  it("useHmrFileChange returns an unsubscribe function", async () => {
+    const {useHmrFileChange} = await import("../src/react/hmr.js");
+    const unsub = useHmrFileChange(() => {});
+    assert.strictEqual(typeof unsub, "function");
+    unsub(); // should not throw
   });
 });

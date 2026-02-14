@@ -466,7 +466,8 @@ export async function build(
         frameworkReactPath: relativePath(path, frameworkReact),
         base: config.base,
         isPreview: false,
-        head: page.head ?? undefined
+        head: page.head ?? undefined,
+        strict: config.reactOptions?.strict
       });
       await effects.writeFile(`${path}.html`, shell);
     }

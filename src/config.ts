@@ -118,6 +118,12 @@ export interface Config {
   watchPath?: string;
   duckdb: DuckDBConfig;
   react: boolean; // defaults to false; enables React rendering mode
+  reactOptions: ReactOptions; // React-specific configuration
+}
+
+export interface ReactOptions {
+  strict: boolean; // defaults to false; enables React.StrictMode
+  suspense: boolean; // defaults to true; enables Suspense for data loading
 }
 
 export interface ConfigSpec {
@@ -285,7 +291,8 @@ export function normalizeConfig(spec: ConfigSpec = {}, defaultRoot?: string, wat
   const interpreters = normalizeInterpreters(spec.interpreters as any);
   const normalizePath = getPathNormalizer(spec);
   const duckdb = normalizeDuckDB(spec.duckdb);
-  const react = spec.react === undefined ? false : Boolean(spec.react);
+  const react = spec.react === undefined ? false : spec.react !== false && spec.react != null ? true : false;
+  const reactOptions = normalizeReactOptions(spec.react);
 
   // If this path ends with a slash, then add an implicit /index to the
   // end of the path. Otherwise, remove the .html extension (we use clean
@@ -338,7 +345,8 @@ export function normalizeConfig(spec: ConfigSpec = {}, defaultRoot?: string, wat
     loaders: new LoaderResolver({root, interpreters}),
     watchPath,
     duckdb,
-    react
+    react,
+    reactOptions
   };
   if (pages === undefined) Object.defineProperty(config, "pages", {get: () => readPages(root, md)});
   if (sidebar === undefined) Object.defineProperty(config, "sidebar", {get: () => config.pages.length > 0});
@@ -562,6 +570,20 @@ function normalizeDuckDB(spec: unknown): DuckDBConfig {
     ),
     extensions
   };
+}
+
+function normalizeReactOptions(spec: unknown): ReactOptions {
+  if (spec == null || typeof spec === "boolean") {
+    return {strict: false, suspense: true};
+  }
+  if (typeof spec === "object") {
+    const obj = spec as Record<string, unknown>;
+    return {
+      strict: obj.strict === undefined ? false : Boolean(obj.strict),
+      suspense: obj.suspense === undefined ? true : Boolean(obj.suspense)
+    };
+  }
+  return {strict: false, suspense: true};
 }
 
 function normalizeDuckDBSource(source: string): string {

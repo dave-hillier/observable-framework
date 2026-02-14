@@ -18,9 +18,49 @@ export function extractStaticHtml(page: MarkdownPage): string {
   // Remove remaining cell markers that may not have a corresponding div
   html = html.replace(/<!--:[^:]+:-->/g, "");
 
+  // Remove loading indicators that won't render without JS
+  html = html.replace(/<observablehq-loading>[\s\S]*?<\/observablehq-loading>/g, "");
+
   // Remove empty paragraphs and excessive whitespace
   html = html.replace(/<p>\s*<\/p>/g, "");
   html = html.replace(/\n{3,}/g, "\n\n");
 
   return html.trim();
+}
+
+/**
+ * Render a compiled React page module to an HTML string using ReactDOMServer.
+ * This provides full server-side rendering for React components.
+ *
+ * Falls back to extractStaticHtml if the page module cannot be rendered
+ * (e.g. when it has side effects that require a browser environment).
+ */
+export async function renderPageToString(
+  pageModuleCode: string,
+  page: MarkdownPage
+): Promise<string> {
+  try {
+    // Dynamically import ReactDOMServer — this keeps it out of the client bundle
+    const {renderToString} = await import("react-dom/server");
+    const React = await import("react");
+
+    // Create a temporary module from the compiled code.
+    // Use a data URI to avoid writing a temp file.
+    const blob = new Blob([pageModuleCode], {type: "text/javascript"});
+    const url = URL.createObjectURL(blob);
+    try {
+      const mod = await import(/* @vite-ignore */ url);
+      const PageComponent = mod.default;
+      if (typeof PageComponent === "function") {
+        return renderToString(React.createElement(PageComponent));
+      }
+    } catch {
+      // Module execution failed (browser APIs, etc.) — fall back
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  } catch {
+    // ReactDOMServer not available — fall back
+  }
+  return extractStaticHtml(page);
 }
