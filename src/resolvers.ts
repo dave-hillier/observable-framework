@@ -42,6 +42,7 @@ export interface ResolversConfig {
   globalStylesheets?: string[];
   loaders: LoaderResolver;
   duckdb: DuckDBConfig;
+  react?: boolean;
 }
 
 const defaultImports = [
@@ -60,7 +61,10 @@ export const builtins = new Map<string, string>([
   ["npm:@observablehq/inputs", "/_observablehq/stdlib/inputs.js"], // TODO publish to npm
   ["npm:@observablehq/mermaid", "/_observablehq/stdlib/mermaid.js"], // TODO publish to npm
   ["npm:@observablehq/tex", "/_observablehq/stdlib/tex.js"], // TODO publish to npm
-  ["npm:@observablehq/sqlite", "/_observablehq/stdlib/sqlite.js"] // TODO publish to npm
+  ["npm:@observablehq/sqlite", "/_observablehq/stdlib/sqlite.js"], // TODO publish to npm
+  // React framework builtins: compiled page modules import from these specifiers
+  ["@observablehq/framework/react/hooks", "/_observablehq/framework-react.js"],
+  ["@observablehq/framework/react/components", "/_observablehq/framework-react.js"]
 ]);
 
 /**
@@ -89,7 +93,7 @@ export const builtins = new Map<string, string>([
  * them to any files referenced by static HTML.
  */
 export async function getResolvers(page: MarkdownPage, config: ResolversConfig): Promise<Resolvers> {
-  const {path, globalStylesheets: defaultStylesheets, loaders} = config;
+  const {path, globalStylesheets: defaultStylesheets, loaders, react} = config;
   const hash = createHash("sha256").update(page.body).update(JSON.stringify(page.data));
   const assets = new Set<string>();
   const files = new Set<string>();
@@ -97,8 +101,8 @@ export async function getResolvers(page: MarkdownPage, config: ResolversConfig):
   const anchors = new Set<string>();
   const localLinks = new Set<string>();
   const localImports = new Set<string>();
-  const globalImports = new Set<string>(defaultImports);
-  const staticImports = new Set<string>(defaultImports);
+  const globalImports = new Set<string>(react ? [] : defaultImports);
+  const staticImports = new Set<string>(react ? [] : defaultImports);
   const stylesheets = new Set<string>(defaultStylesheets);
 
   // Add assets.

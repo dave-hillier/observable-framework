@@ -64,16 +64,22 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   const needsDisplay = cellInfos.some((c) => c.references.includes("display"));
   const needsView = cellInfos.some((c) => c.references.includes("view"));
 
+  // Resolve framework import specifiers through the resolver so they point to
+  // the bundled framework-react module in production builds.
+  const hooksSpec = resolveImport("@observablehq/framework/react/hooks");
+  const componentsSpec = resolveImport("@observablehq/framework/react/components");
+  const reactSpec = resolveImport("npm:react");
+
   // Build imports section
   const imports: string[] = [];
-  imports.push(`import React, {useState, useMemo, useEffect, useCallback, useRef, Suspense} from "react";`);
-  imports.push(`import {CellProvider, useCellOutput, useCellInput} from "@observablehq/framework/react/hooks";`);
-  imports.push(`import {ErrorBoundary} from "@observablehq/framework/react/components";`);
-  imports.push(`import {Loading} from "@observablehq/framework/react/components";`);
+  imports.push(`import React, {useState, useMemo, useEffect, useCallback, useRef, Suspense} from ${JSON.stringify(reactSpec)};`);
+  imports.push(`import {CellProvider, useCellOutput, useCellInput} from ${JSON.stringify(hooksSpec)};`);
+  imports.push(`import {ErrorBoundary} from ${JSON.stringify(componentsSpec)};`);
+  imports.push(`import {Loading} from ${JSON.stringify(componentsSpec)};`);
 
-  if (needsWidth) imports.push(`import {useWidthRef} from "@observablehq/framework/react/hooks";`);
-  if (needsDark) imports.push(`import {useDark} from "@observablehq/framework/react/hooks";`);
-  if (needsNow) imports.push(`import {useNow} from "@observablehq/framework/react/hooks";`);
+  if (needsWidth) imports.push(`import {useWidthRef} from ${JSON.stringify(hooksSpec)};`);
+  if (needsDark) imports.push(`import {useDark} from ${JSON.stringify(hooksSpec)};`);
+  if (needsNow) imports.push(`import {useNow} from ${JSON.stringify(hooksSpec)};`);
 
   // Collect imports from code cells using the AST (not regex)
   const cellImportStatements = collectCellImports(code, resolveImport);

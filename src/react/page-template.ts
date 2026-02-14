@@ -18,8 +18,14 @@ export function generateReactPageShell(options: {
   bodyHtml?: string; // Pre-rendered HTML for SSG
   base?: string;
   isPreview?: boolean;
+  reactBootstrapPath?: string; // Resolved (hashed) path for build mode
+  reactDomBootstrapPath?: string; // Resolved (hashed) path for build mode
+  frameworkReactPath?: string; // Resolved (hashed) path for build mode
 }): string {
   const {title, siteTitle, stylesheets, modulePreloads, pageModulePath, bodyHtml, base = "/", isPreview} = options;
+  const reactBootstrap = options.reactBootstrapPath ?? `${base}_observablehq/react-bootstrap.js`;
+  const reactDomBootstrap = options.reactDomBootstrapPath ?? `${base}_observablehq/react-dom-bootstrap.js`;
+  const frameworkReact = options.frameworkReactPath ?? `${base}_observablehq/framework-react.js`;
 
   const fullTitle = [title, siteTitle].filter(Boolean).join(" | ");
 
@@ -35,9 +41,9 @@ ${modulePreloads.map((href) => `<link rel="modulepreload" href="${escapeHtml(hre
 <body>
 <div id="observablehq-root">${bodyHtml ?? ""}</div>
 <script type="module">
-import React from "${base}_observablehq/react-bootstrap.js";
-import ReactDOM from "${base}_observablehq/react-dom-bootstrap.js";
-import {App} from "${base}_observablehq/framework-react.js";
+import React from "${escapeJs(reactBootstrap)}";
+import ReactDOM from "${escapeJs(reactDomBootstrap)}";
+import {App} from "${escapeJs(frameworkReact)}";
 import Page from "${escapeJs(pageModulePath)}";
 
 const root = document.getElementById("observablehq-root");

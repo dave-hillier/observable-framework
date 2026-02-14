@@ -13,6 +13,8 @@ import type {MarkdownPage} from "./markdown.js";
 import {populateNpmCache, resolveNpmImport, rewriteNpmImports} from "./npm.js";
 import {isAssetPath, isPathImport, relativePath, resolvePath, within} from "./path.js";
 import {renderModule, renderPage} from "./render.js";
+import {compileMarkdownToReact, generateReactPageShell} from "./react/index.js";
+import {configToAppConfig, generateRouteDefinitions} from "./react/render.js";
 import type {Resolvers} from "./resolvers.js";
 import {getModuleResolvers, getResolvers} from "./resolvers.js";
 import {resolveStylesheetPath} from "./resolvers.js";
@@ -141,7 +143,15 @@ export async function build(
     ++pageCount;
   }
 
-  // Check that there’s at least one output.
+  // In React mode, add React client bootstrap modules to globalImports
+  // so they get bundled and hashed like the Observable client modules.
+  if (config.react) {
+    globalImports.add("/_observablehq/react-bootstrap.js");
+    globalImports.add("/_observablehq/react-dom-bootstrap.js");
+    globalImports.add("/_observablehq/framework-react.js");
+  }
+
+  // Check that there's at least one output.
   const outputCount = pageCount + assetCount;
   if (!outputCount) throw new CliError(`Nothing to build: no pages found in your ${root} directory.`);
   if (pageCount) effects.logger.log(`${faint("built")} ${pageCount} ${faint(`page${pageCount === 1 ? "" : "s"} in`)} ${root}`); // prettier-ignore
@@ -362,17 +372,98 @@ export async function build(
   }
 
   // Render pages!
-  for (const [path, output] of outputs) {
-    effects.output.write(`${faint("render")} ${path} ${faint("→")} `);
-    if (output.type === "page") {
-      const {page, resolvers} = output;
-      const html = await renderPage(page, {...config, path, resolvers});
-      await effects.writeFile(`${path}.html`, html);
-      addToManifest("pages", path, page);
-    } else {
-      const {resolvers} = output;
-      const source = await renderModule(root, path, resolvers);
-      await effects.writeFile(path, source);
+  if (config.react) {
+    // React mode: compile each page to a JS module, then write shell HTML
+    // for every page path so static hosting works with direct URL access.
+    const reactPageModules = new Map<string, string>(); // path → hashed alias
+
+    // Step 1: Compile each page to a React component module.
+    for (const [path, output] of outputs) {
+      effects.output.write(`${faint("render")} ${path} ${faint("→")} `);
+      if (output.type === "page") {
+        const {page, resolvers} = output;
+        // The compiled page module is served from /_observablehq/react-pages/{path}.js,
+        // so we wrap resolveImport/resolveFile to produce paths relative to that location.
+        const moduleServePath = `/_observablehq/react-pages${path}.js`;
+        const wrapResolve = (resolve: (s: string) => string) => (specifier: string) => {
+          const resolved = resolve(specifier);
+          // Convert the page-relative path to an absolute path, then back to module-relative
+          const abs = resolvePath(path, resolved);
+          return relativePath(moduleServePath, abs);
+        };
+        const moduleSource = compileMarkdownToReact(page, {
+          path,
+          resolveImport: wrapResolve(resolvers.resolveImport),
+          resolveFile: wrapResolve(resolvers.resolveFile)
+        });
+        const hash = createHash("sha256").update(moduleSource).digest("hex").slice(0, 8);
+        const modulePath = `/_observablehq/react-pages${path}.${hash}.js`;
+        reactPageModules.set(path, modulePath);
+        await effects.writeFile(modulePath, moduleSource);
+        addToManifest("pages", path, page);
+      } else {
+        const {resolvers} = output;
+        const source = await renderModule(root, path, resolvers);
+        await effects.writeFile(path, source);
+      }
+    }
+
+    // Step 2: Resolve stylesheet and module preload aliases for the shell.
+    const resolvedStylesheets: string[] = [];
+    for (const specifier of stylesheets) {
+      if (specifier.startsWith("observablehq:")) {
+        const path = `/_observablehq/${specifier.slice("observablehq:".length)}`;
+        resolvedStylesheets.push(aliases.get(path) ?? path);
+      } else if (specifier.startsWith("npm:")) {
+        const path = await resolveNpmImport(root, specifier.slice("npm:".length));
+        resolvedStylesheets.push(path);
+      } else if (!/^\w+:/.test(specifier)) {
+        const resolved = resolveStylesheetPath(root, specifier);
+        resolvedStylesheets.push(aliases.get(resolved) ?? resolved);
+      } else {
+        resolvedStylesheets.push(specifier);
+      }
+    }
+
+    // Resolve the React bootstrap module aliases for the shell HTML.
+    const reactBootstrap = aliases.get("/_observablehq/react-bootstrap.js") ?? "/_observablehq/react-bootstrap.js";
+    const reactDomBootstrap = aliases.get("/_observablehq/react-dom-bootstrap.js") ?? "/_observablehq/react-dom-bootstrap.js";
+    const frameworkReact = aliases.get("/_observablehq/framework-react.js") ?? "/_observablehq/framework-react.js";
+
+    // Step 3: Write a React shell HTML for each page path.
+    for (const [path, modulePath] of reactPageModules) {
+      const output = outputs.get(path);
+      if (!output || output.type !== "page") continue;
+      const {page} = output;
+
+      const shell = generateReactPageShell({
+        title: page.title ?? undefined,
+        siteTitle: title,
+        stylesheets: resolvedStylesheets,
+        modulePreloads: [reactBootstrap, reactDomBootstrap, frameworkReact, modulePath],
+        pageModulePath: relativePath(path, modulePath),
+        reactBootstrapPath: relativePath(path, reactBootstrap),
+        reactDomBootstrapPath: relativePath(path, reactDomBootstrap),
+        frameworkReactPath: relativePath(path, frameworkReact),
+        base: config.base,
+        isPreview: false
+      });
+      await effects.writeFile(`${path}.html`, shell);
+    }
+  } else {
+    // Standard Observable mode: render each page as self-contained HTML.
+    for (const [path, output] of outputs) {
+      effects.output.write(`${faint("render")} ${path} ${faint("→")} `);
+      if (output.type === "page") {
+        const {page, resolvers} = output;
+        const html = await renderPage(page, {...config, path, resolvers});
+        await effects.writeFile(`${path}.html`, html);
+        addToManifest("pages", path, page);
+      } else {
+        const {resolvers} = output;
+        const source = await renderModule(root, path, resolvers);
+        await effects.writeFile(path, source);
+      }
     }
   }
 
