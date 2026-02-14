@@ -100,14 +100,14 @@ export interface Config {
   base: string; // defaults to "/"
   home: string; // defaults to the (escaped) title, or "Home"
   title?: string;
-  sidebar: boolean; // defaults to true if pages isn’t empty
+  sidebar: boolean; // defaults to true if pages isn't empty
   pages: (Page | Section<Page>)[];
   pager: boolean; // defaults to true
   paths: () => AsyncIterable<string>; // defaults to static Markdown files
   scripts: Script[]; // deprecated; defaults to empty array
   head: PageFragmentFunction | string | null; // defaults to null
   header: PageFragmentFunction | string | null; // defaults to null
-  footer: PageFragmentFunction | string | null; // defaults to “Built with Observable on [date].”
+  footer: PageFragmentFunction | string | null; // defaults to "Built with Observable on [date]."
   toc: TableOfContents;
   style: null | Style; // defaults to {theme: ["light", "dark"]}
   globalStylesheets: string[]; // defaults to Source Serif from Google Fonts
@@ -117,6 +117,7 @@ export interface Config {
   loaders: LoaderResolver;
   watchPath?: string;
   duckdb: DuckDBConfig;
+  react: boolean; // defaults to false; enables React rendering mode
 }
 
 export interface ConfigSpec {
@@ -147,6 +148,7 @@ export interface ConfigSpec {
   preserveExtension?: unknown;
   markdownIt?: unknown;
   duckdb?: unknown;
+  react?: unknown;
 }
 
 interface ScriptSpec {
@@ -283,6 +285,7 @@ export function normalizeConfig(spec: ConfigSpec = {}, defaultRoot?: string, wat
   const interpreters = normalizeInterpreters(spec.interpreters as any);
   const normalizePath = getPathNormalizer(spec);
   const duckdb = normalizeDuckDB(spec.duckdb);
+  const react = spec.react === undefined ? false : Boolean(spec.react);
 
   // If this path ends with a slash, then add an implicit /index to the
   // end of the path. Otherwise, remove the .html extension (we use clean
@@ -334,7 +337,8 @@ export function normalizeConfig(spec: ConfigSpec = {}, defaultRoot?: string, wat
     normalizePath,
     loaders: new LoaderResolver({root, interpreters}),
     watchPath,
-    duckdb
+    duckdb,
+    react
   };
   if (pages === undefined) Object.defineProperty(config, "pages", {get: () => readPages(root, md)});
   if (sidebar === undefined) Object.defineProperty(config, "sidebar", {get: () => config.pages.length > 0});

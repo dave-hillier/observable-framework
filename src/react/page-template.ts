@@ -35,8 +35,8 @@ ${modulePreloads.map((href) => `<link rel="modulepreload" href="${escapeHtml(hre
 <body>
 <div id="observablehq-root">${bodyHtml ?? ""}</div>
 <script type="module">
-import React from "${base}_observablehq/react.js";
-import ReactDOM from "${base}_observablehq/react-dom.js";
+import React from "${base}_observablehq/react-bootstrap.js";
+import ReactDOM from "${base}_observablehq/react-dom-bootstrap.js";
 import {App} from "${base}_observablehq/framework-react.js";
 import Page from "${escapeJs(pageModulePath)}";
 
