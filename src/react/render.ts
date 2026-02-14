@@ -74,7 +74,9 @@ export async function renderReactPage(
     modulePreloads,
     pageModulePath,
     base,
-    isPreview: preview
+    isPreview: preview,
+    hash: resolvers.hash,
+    head: page.head ?? undefined
   });
 
   return {html: shell, pageModule};

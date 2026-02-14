@@ -383,11 +383,33 @@ function handleWatch(socket: WebSocket, req: IncomingMessage, configPromise: Pro
         const resolvers = await getResolvers(page, {path, ...config});
         if (hash === resolvers.hash) break;
 
-        // In React mode, send a full reload instead of granular patches.
-        // The compiled React page module will be re-fetched on reload.
+        // In React mode, send targeted updates instead of a full page reload.
+        // Detect whether only file attachments changed or the page content also changed.
         if (config.react) {
+          const previousHash = hash!;
+          const previousFiles = files!;
+          const previousStylesheets = stylesheets!;
           hash = resolvers.hash;
-          send({type: "reload"});
+          const newFiles = getFiles(resolvers);
+          const newStylesheets = Array.from(resolvers.stylesheets, resolvers.resolveStylesheet);
+          const filePatch = diffFiles(previousFiles, newFiles, getInfoResolver(loaders, path));
+          const stylesheetPatch = diffStylesheets(previousStylesheets, newStylesheets);
+          // Detect whether page content (body, code) changed or only files/stylesheets
+          const newHtml = getHtml(page, resolvers);
+          const newCode = getCode(page, resolvers);
+          const htmlChanged = JSON.stringify(newHtml) !== JSON.stringify(html);
+          const codeChanged = JSON.stringify(Array.from(newCode)) !== JSON.stringify(Array.from(code ?? new Map()));
+          html = newHtml;
+          code = newCode;
+          files = newFiles;
+          stylesheets = newStylesheets;
+          send({
+            type: "react-update",
+            pageChanged: htmlChanged || codeChanged,
+            files: filePatch,
+            stylesheets: stylesheetPatch,
+            hash: {previous: previousHash, current: hash}
+          });
           attachmentWatcher?.close();
           attachmentWatcher = await loaders.watchFiles(path, getWatchFiles(resolvers), () => watcher("change"));
           break;

@@ -17,6 +17,7 @@ import {renderModule, renderPage} from "./render.js";
 import type {FileRegistration} from "./react/index.js";
 import {compileMarkdownToReact, generateReactPageShell} from "./react/index.js";
 import {configToAppConfig, generateRouteDefinitions} from "./react/render.js";
+import {extractStaticHtml} from "./react/ssr.js";
 import type {Resolvers} from "./resolvers.js";
 import {getModuleResolvers, getResolvers} from "./resolvers.js";
 import {resolveStylesheetPath} from "./resolvers.js";
@@ -452,12 +453,14 @@ export async function build(
       if (!output || output.type !== "page") continue;
       const {page} = output;
 
+      const bodyHtml = extractStaticHtml(page);
       const shell = generateReactPageShell({
         title: page.title ?? undefined,
         siteTitle: title,
         stylesheets: resolvedStylesheets,
         modulePreloads: [reactBootstrap, reactDomBootstrap, frameworkReact, modulePath],
         pageModulePath: relativePath(path, modulePath),
+        bodyHtml: bodyHtml || undefined,
         reactBootstrapPath: relativePath(path, reactBootstrap),
         reactDomBootstrapPath: relativePath(path, reactDomBootstrap),
         frameworkReactPath: relativePath(path, frameworkReact),

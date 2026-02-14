@@ -16,14 +16,19 @@ export {Pager} from "./components/Pager.js";
 export type {PagerProps, PagerLink} from "./components/Pager.js";
 export {ErrorBoundary} from "./components/ErrorBoundary.js";
 export {Loading} from "./components/Loading.js";
+export {ThemeToggle} from "./components/ThemeToggle.js";
 
 // Cell context hooks
 export {CellProvider, useCellInput, useCellOutput, useCellContext} from "./hooks/useCellContext.js";
 
 // Reactive environment hooks
 export {useWidth, useWidthRef} from "./hooks/useWidth.js";
-export {useDark} from "./hooks/useDark.js";
+export {useDark, useThemePreference} from "./hooks/useDark.js";
+export type {ThemePreference} from "./hooks/useDark.js";
 export {useNow} from "./hooks/useNow.js";
 
+// Search
+export {useSearch} from "./hooks/useSearch.js";
+
 // Data loading hooks & file format classes
-export {useFileAttachment, useFileData, SQLiteDatabaseClient, Workbook, ZipArchive, ZipArchiveEntry} from "./hooks/useFileAttachment.js";
+export {registerFile, useFileAttachment, useFileData, SQLiteDatabaseClient, Workbook, ZipArchive, ZipArchiveEntry} from "./hooks/useFileAttachment.js";

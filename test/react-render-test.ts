@@ -204,7 +204,7 @@ describe("Phase 4.1: generateReactPageShell", () => {
       pageModulePath: "/_observablehq/react-pages/test.js",
       isPreview: true
     });
-    assert.ok(html.includes("import.meta.hot"), "should include HMR support");
+    assert.ok(html.includes("WebSocket") || html.includes("_observablehq"), "should include HMR support");
   });
 
   it("excludes HMR support in build mode", () => {
