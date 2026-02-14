@@ -304,11 +304,26 @@ function escapeRegexInSource(s: string): string {
  * Compiles an inline cell expression into a JSX expression string.
  * Inline cells are ${...} expressions embedded in markdown text.
  *
- * Observable: `The total is ${total.toLocaleString()}.`
- * React: `The total is {total?.toLocaleString()}.`
+ * When the expression references cell-declared variables, it returns a
+ * marker string that buildPageBody uses to generate an inline component
+ * that subscribes to those cell values via useCellInput.
+ *
+ * @param allDeclarations - set of variable names declared across all cells;
+ *   when provided, enables reactive inline expressions
  */
-export function compileInlineCellToExpression(source: string, _references: string[]): string {
+export function compileInlineCellToExpression(
+  source: string,
+  references: string[],
+  allDeclarations?: Set<string>
+): string {
   const trimmed = source.trim().replace(/;$/, "");
+  if (allDeclarations) {
+    const cellRefs = references.filter((r) => allDeclarations.has(r));
+    if (cellRefs.length > 0) {
+      // Encode as a marker; buildPageBody replaces it with a component reference
+      return `__INLINE_CELL__:${JSON.stringify(cellRefs)}:__EXPR__${trimmed}__END__`;
+    }
+  }
   return trimmed;
 }
 

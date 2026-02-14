@@ -128,6 +128,35 @@ describe("React build", () => {
     await Promise.all([inputDir, cacheDir, outputDir].map((dir) => rm(dir, {recursive: true}))).catch(() => {});
   });
 
+  it("should include custom head content in React shell HTML", async () => {
+    const tmpPrefix = join(os.tmpdir(), "framework-react-build-");
+    const inputDir = await mkdtemp(tmpPrefix + "input-");
+    const customHead = '<script async src="https://analytics.example.com/tag.js"></script>';
+    await writeFile(
+      join(inputDir, "index.md"),
+      `---
+title: Analytics Page
+head: |
+  ${customHead}
+---
+
+# Hello
+`
+    );
+
+    const outputDir = await mkdtemp(tmpPrefix + "output-");
+    const cacheDir = await mkdtemp(tmpPrefix + "cache-");
+
+    const config = normalizeConfig({root: inputDir, output: outputDir, react: true}, inputDir);
+    const effects = new LoggingBuildEffects(outputDir, cacheDir);
+    await build({config}, effects);
+
+    const indexHtml = await readFile(join(outputDir, "index.html"), "utf8");
+    assert.ok(indexHtml.includes("analytics.example.com"), "should include custom head content in shell HTML");
+
+    await Promise.all([inputDir, cacheDir, outputDir].map((dir) => rm(dir, {recursive: true}))).catch(() => {});
+  });
+
   it("should include pages in the build manifest", async () => {
     const tmpPrefix = join(os.tmpdir(), "framework-react-build-");
     const inputDir = await mkdtemp(tmpPrefix + "input-");

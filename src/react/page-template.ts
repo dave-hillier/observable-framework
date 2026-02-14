@@ -21,8 +21,9 @@ export function generateReactPageShell(options: {
   reactBootstrapPath?: string; // Resolved (hashed) path for build mode
   reactDomBootstrapPath?: string; // Resolved (hashed) path for build mode
   frameworkReactPath?: string; // Resolved (hashed) path for build mode
+  head?: string; // Custom head content from config/page (analytics, fonts, etc.)
 }): string {
-  const {title, siteTitle, stylesheets, modulePreloads, pageModulePath, bodyHtml, base = "/", isPreview} = options;
+  const {title, siteTitle, stylesheets, modulePreloads, pageModulePath, bodyHtml, base = "/", isPreview, head} = options;
   const reactBootstrap = options.reactBootstrapPath ?? `${base}_observablehq/react-bootstrap.js`;
   const reactDomBootstrap = options.reactDomBootstrapPath ?? `${base}_observablehq/react-dom-bootstrap.js`;
   const frameworkReact = options.frameworkReactPath ?? `${base}_observablehq/framework-react.js`;
@@ -37,6 +38,7 @@ export function generateReactPageShell(options: {
 ${fullTitle ? `<title>${escapeHtml(fullTitle)}</title>` : ""}
 ${stylesheets.map((href) => `<link rel="stylesheet" type="text/css" href="${escapeHtml(href)}">`).join("\n")}
 ${modulePreloads.map((href) => `<link rel="modulepreload" href="${escapeHtml(href)}">`).join("\n")}
+${head ?? ""}
 </head>
 <body>
 <div id="observablehq-root">${bodyHtml ?? ""}</div>

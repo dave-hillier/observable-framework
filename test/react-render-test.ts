@@ -284,3 +284,87 @@ describe("Config: react flag", () => {
     assert.strictEqual(config.react, true);
   });
 });
+
+// =============================================================================
+// Phase 7.2: Custom head content in React shell
+// =============================================================================
+
+describe("Phase 7.2: Custom head content in React shell", () => {
+  it("includes custom head content when provided", () => {
+    const html = generateReactPageShell({
+      title: "Test",
+      stylesheets: [],
+      modulePreloads: [],
+      pageModulePath: "/page.js",
+      head: '<script async src="https://www.googletagmanager.com/gtag/js"></script>'
+    });
+    assert.ok(html.includes("googletagmanager.com"), "should include the custom head content");
+    assert.ok(html.includes("</head>"), "should still close the head tag");
+    // Verify the head content is inside <head>
+    const headStart = html.indexOf("<head>");
+    const headEnd = html.indexOf("</head>");
+    const headContentPos = html.indexOf("googletagmanager.com");
+    assert.ok(headContentPos > headStart && headContentPos < headEnd, "head content should be inside <head>");
+  });
+
+  it("omits custom head content when not provided", () => {
+    const html = generateReactPageShell({
+      title: "Test",
+      stylesheets: [],
+      modulePreloads: [],
+      pageModulePath: "/page.js"
+    });
+    // Should not have any empty lines from missing head
+    assert.ok(html.includes("</head>"), "should still have closing head tag");
+    assert.ok(!html.includes("undefined"), "should not include literal 'undefined'");
+  });
+
+  it("supports multiple head elements", () => {
+    const headContent = `<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter" rel="stylesheet">`;
+    const html = generateReactPageShell({
+      title: "Test",
+      stylesheets: [],
+      modulePreloads: [],
+      pageModulePath: "/page.js",
+      head: headContent
+    });
+    assert.ok(html.includes("fonts.googleapis.com"), "should include font preconnect");
+    assert.ok(html.includes("family=Inter"), "should include font stylesheet");
+  });
+});
+
+// =============================================================================
+// Phase 7.3: Base path handling in shell
+// =============================================================================
+
+describe("Phase 7.3: Base path in React shell", () => {
+  it("uses base path for bootstrap module URLs", () => {
+    const html = generateReactPageShell({
+      title: "Test",
+      stylesheets: [],
+      modulePreloads: [],
+      pageModulePath: "/page.js",
+      base: "/myapp/"
+    });
+    assert.ok(html.includes("/myapp/_observablehq/react-bootstrap.js"), "should prefix react-bootstrap with base");
+    assert.ok(html.includes("/myapp/_observablehq/react-dom-bootstrap.js"), "should prefix react-dom-bootstrap with base");
+    assert.ok(html.includes("/myapp/_observablehq/framework-react.js"), "should prefix framework-react with base");
+  });
+
+  it("uses hashed paths when provided (build mode)", () => {
+    const html = generateReactPageShell({
+      title: "Test",
+      stylesheets: [],
+      modulePreloads: [],
+      pageModulePath: "/_observablehq/react-pages/index.abc123.js",
+      reactBootstrapPath: "/_observablehq/react-bootstrap.abc123.js",
+      reactDomBootstrapPath: "/_observablehq/react-dom-bootstrap.def456.js",
+      frameworkReactPath: "/_observablehq/framework-react.ghi789.js",
+      base: "/"
+    });
+    assert.ok(html.includes("react-bootstrap.abc123.js"), "should use hashed react-bootstrap path");
+    assert.ok(html.includes("react-dom-bootstrap.def456.js"), "should use hashed react-dom-bootstrap path");
+    assert.ok(html.includes("framework-react.ghi789.js"), "should use hashed framework-react path");
+  });
+});

@@ -360,3 +360,95 @@ now
     await assertValidJsx(compileMarkdownToReact(page, {path: "/test"}), "builtins page");
   });
 });
+
+// =============================================================================
+// Phase 7.1: File registration in compiled modules
+// =============================================================================
+
+describe("Phase 7.1: File registration", () => {
+  it("emits registerFile() calls when files option is provided", () => {
+    const page = parseMarkdown("# Page\n\nSome text.\n", {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {
+      path: "/test",
+      files: [
+        {name: "data.csv", mimeType: "text/csv", path: "/_file/data.abc123.csv"},
+        {name: "image.png", mimeType: "image/png", path: "/_file/image.def456.png", size: 1024}
+      ]
+    });
+    assert.ok(result.includes("registerFile"), "should import registerFile");
+    assert.ok(result.includes('"data.csv"'), "should register data.csv");
+    assert.ok(result.includes('"image.png"'), "should register image.png");
+    assert.ok(result.includes('"text/csv"'), "should include mimeType for csv");
+    assert.ok(result.includes('"image/png"'), "should include mimeType for png");
+    assert.ok(result.includes("/_file/data.abc123.csv"), "should include resolved path");
+  });
+
+  it("does not emit registerFile() when no files are provided", () => {
+    const page = parseMarkdown("# Page\n\nSome text.\n", {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(!result.includes("registerFile"), "should not import registerFile");
+  });
+
+  it("does not emit registerFile() when files array is empty", () => {
+    const page = parseMarkdown("# Page\n", {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test", files: []});
+    assert.ok(!result.includes("registerFile"), "should not import registerFile for empty array");
+  });
+
+  it("file registration output is valid JSX", async () => {
+    const page = parseMarkdown("# Files\n\n```js\nconst x = 1;\n```\n", {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {
+      path: "/test",
+      files: [{name: "data.json", mimeType: "application/json", path: "/_file/data.abc.json", lastModified: 1700000000000, size: 512}]
+    });
+    await assertValidJsx(result, "file registration");
+  });
+});
+
+// =============================================================================
+// Phase 7.4: Reactive inline expressions
+// =============================================================================
+
+describe("Phase 7.4: Reactive inline expressions", () => {
+  it("generates inline component for expressions referencing cell variables", async () => {
+    const source = `\`\`\`js
+const x = 42;
+\`\`\`
+
+The value is \${x}.
+`;
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(result.includes("function Inline_"), "should generate an Inline_ component");
+    assert.ok(result.includes("useCellInput"), "inline component should use useCellInput");
+    assert.ok(result.includes("<Inline_"), "page body should reference the inline component");
+    await assertValidJsx(result, "reactive inline expression");
+  });
+
+  it("does not generate inline component for static expressions", async () => {
+    const source = `The value is \${1 + 1}.`;
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(!result.includes("function Inline_"), "should not generate inline component for static expression");
+    await assertValidJsx(result, "static inline expression");
+  });
+
+  it("generates multiple inline components for multiple reactive expressions", async () => {
+    const source = `\`\`\`js
+const a = 1;
+\`\`\`
+
+\`\`\`js
+const b = 2;
+\`\`\`
+
+First: \${a}, Second: \${b}, Combined: \${a + b}.
+`;
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    // Should have multiple inline components
+    const inlineMatches = result.match(/function Inline_/g);
+    assert.ok(inlineMatches && inlineMatches.length >= 2, "should generate at least 2 inline components");
+    await assertValidJsx(result, "multiple reactive inline expressions");
+  });
+});

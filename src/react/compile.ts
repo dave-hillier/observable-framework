@@ -3,6 +3,17 @@ import type {Params} from "../route.js";
 import {compileCellToComponent, compileInlineCellToExpression} from "./cell-transform.js";
 
 /**
+ * Metadata for a file referenced by the page, used for registerFile() calls.
+ */
+export interface FileRegistration {
+  name: string;
+  mimeType?: string;
+  path: string;
+  lastModified?: number;
+  size?: number;
+}
+
+/**
  * Options for compiling a markdown page to React.
  */
 export interface CompileOptions {
@@ -14,6 +25,8 @@ export interface CompileOptions {
   resolveImport?: (specifier: string) => string;
   /** File resolver */
   resolveFile?: (name: string) => string;
+  /** File metadata for registerFile() calls in the compiled module */
+  files?: FileRegistration[];
 }
 
 /**
@@ -27,7 +40,7 @@ export interface CompileOptions {
  * The output is a valid ES module that default-exports a React component.
  */
 export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptions): string {
-  const {path, params, resolveImport = (s) => s, resolveFile = (s) => s} = options;
+  const {path, params, resolveImport = (s) => s, resolveFile = (s) => s, files = []} = options;
   const {code} = page;
 
   // Collect all cell analysis info
@@ -106,15 +119,30 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   }
 
   // Build the page body by replacing cell markers with React elements
-  const pageBody = buildPageBody(page, cellInfos, importOnlyCellIds);
+  const {body: pageBody, inlineComponents} = buildPageBody(page, cellInfos, importOnlyCellIds, allDeclarations);
 
   // Build the page component
   const lines: string[] = [];
   lines.push(imports.join("\n"));
   lines.push("");
 
+  // Emit file registration calls so FileAttachment() resolves correctly
+  if (files.length > 0) {
+    lines.push(`import {registerFile} from ${JSON.stringify(hooksSpec)};`);
+    for (const file of files) {
+      lines.push(`registerFile(${JSON.stringify(file.name)}, ${JSON.stringify({name: file.name, mimeType: file.mimeType, path: file.path, lastModified: file.lastModified, size: file.size})});`);
+    }
+    lines.push("");
+  }
+
   // Add cell components
   for (const comp of cellComponents) {
+    lines.push(comp);
+    lines.push("");
+  }
+
+  // Add inline expression components (for reactive ${...} in markdown)
+  for (const comp of inlineComponents) {
     lines.push(comp);
     lines.push("");
   }
@@ -192,19 +220,36 @@ function escapeRegex(s: string): string {
 function buildPageBody(
   page: MarkdownPage,
   cellInfos: {id: string; mode: string; expression: boolean; source: string; declarations: string[]; references: string[]}[],
-  importOnlyCellIds: Set<string>
-): string {
+  importOnlyCellIds: Set<string>,
+  allDeclarations: Set<string>
+): {body: string; inlineComponents: string[]} {
   let body = page.body;
+  const inlineComponents: string[] = [];
 
   for (const cell of cellInfos) {
     if (cell.mode === "inline") {
       // Replace inline expression markers with JSX expression
-      const inlineExpr = compileInlineCellToExpression(cell.source, cell.references);
+      const inlineExpr = compileInlineCellToExpression(cell.source, cell.references, allDeclarations);
       const pattern = new RegExp(
         `<observablehq-loading><\\/observablehq-loading><!--:${cell.id}:-->`,
         "g"
       );
-      body = body.replace(pattern, `{${inlineExpr}}`);
+      // Check if this is a reactive inline expression (contains cell variable references)
+      const inlineMatch = inlineExpr.match(/^__INLINE_CELL__:(.*?):__EXPR__([\s\S]*)__END__$/);
+      if (inlineMatch) {
+        const refs = JSON.parse(inlineMatch[1]) as string[];
+        const expr = inlineMatch[2];
+        // Generate an inline component that reads cell values
+        const componentName = `Inline_${cell.id}`;
+        inlineComponents.push(
+          `function ${componentName}() {\n` +
+          refs.map((r) => `  const ${r} = useCellInput(${JSON.stringify(r)});`).join("\n") +
+          `\n  return <>{${expr}}</>;\n}`
+        );
+        body = body.replace(pattern, `<${componentName} />`);
+      } else {
+        body = body.replace(pattern, `{${inlineExpr}}`);
+      }
     } else if (importOnlyCellIds.has(cell.id)) {
       // Import-only cells: remove the entire block div
       const blockPattern = new RegExp(
@@ -236,10 +281,11 @@ function buildPageBody(
   body = htmlToJsx(body);
 
   // Wrap in a fragment
-  return `        <>\n${body
+  const wrappedBody = `        <>\n${body
     .split("\n")
     .map((line) => `          ${line}`)
     .join("\n")}\n        </>`;
+  return {body: wrappedBody, inlineComponents};
 }
 
 /**

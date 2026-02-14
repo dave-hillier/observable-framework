@@ -2,6 +2,7 @@ import {createHash} from "node:crypto";
 import {existsSync} from "node:fs";
 import {copyFile, readFile, rm, stat, writeFile} from "node:fs/promises";
 import {basename, dirname, extname, join} from "node:path/posix";
+import mime from "mime";
 import type {Config} from "./config.js";
 import {getDuckDBManifest} from "./duckdb.js";
 import {CliError, enoent} from "./error.js";
@@ -13,6 +14,7 @@ import type {MarkdownPage} from "./markdown.js";
 import {populateNpmCache, resolveNpmImport, rewriteNpmImports} from "./npm.js";
 import {isAssetPath, isPathImport, relativePath, resolvePath, within} from "./path.js";
 import {renderModule, renderPage} from "./render.js";
+import type {FileRegistration} from "./react/index.js";
 import {compileMarkdownToReact, generateReactPageShell} from "./react/index.js";
 import {configToAppConfig, generateRouteDefinitions} from "./react/render.js";
 import type {Resolvers} from "./resolvers.js";
@@ -391,10 +393,24 @@ export async function build(
           const abs = resolvePath(path, resolved);
           return relativePath(moduleServePath, abs);
         };
+        // Build file registration metadata so FileAttachment() works in production
+        const fileRegistrations: FileRegistration[] = [];
+        for (const name of resolvers.files) {
+          const resolvedPath = wrapResolve(resolvers.resolveFile)(name);
+          const info = loaders.getOutputInfo(resolvePath(path, name));
+          fileRegistrations.push({
+            name,
+            mimeType: mime.getType(name) ?? undefined,
+            path: resolvedPath,
+            lastModified: info?.mtimeMs,
+            size: info?.size
+          });
+        }
         const moduleSource = compileMarkdownToReact(page, {
           path,
           resolveImport: wrapResolve(resolvers.resolveImport),
-          resolveFile: wrapResolve(resolvers.resolveFile)
+          resolveFile: wrapResolve(resolvers.resolveFile),
+          files: fileRegistrations
         });
         const hash = createHash("sha256").update(moduleSource).digest("hex").slice(0, 8);
         const modulePath = `/_observablehq/react-pages${path}.${hash}.js`;
@@ -446,7 +462,8 @@ export async function build(
         reactDomBootstrapPath: relativePath(path, reactDomBootstrap),
         frameworkReactPath: relativePath(path, frameworkReact),
         base: config.base,
-        isPreview: false
+        isPreview: false,
+        head: page.head ?? undefined
       });
       await effects.writeFile(`${path}.html`, shell);
     }
