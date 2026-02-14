@@ -77,7 +77,8 @@ export async function renderReactPage(
     base,
     isPreview: preview,
     hash: resolvers.hash,
-    head: page.head ?? undefined
+    head: page.head ?? undefined,
+    strict: options.reactOptions?.strict
   });
 
   return {html: shell, pageModule};

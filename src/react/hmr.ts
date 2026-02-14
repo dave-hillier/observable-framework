@@ -22,6 +22,14 @@ export function onHmrEvent(event: string, callback: HmrCallback): () => void {
 }
 
 /**
+ * Dispatch an event to all registered HMR listeners.
+ */
+function dispatchHmrEvent(event: string, data: unknown): void {
+  const cbs = listeners.get(event);
+  if (cbs) for (const cb of cbs) cb(data);
+}
+
+/**
  * Initialize HMR listeners if running in Vite dev mode.
  * This is called once at app startup.
  */
@@ -31,30 +39,24 @@ export function initHmr(): void {
   const hot = (import.meta as any).hot;
   if (!hot) return;
 
-  // Listen for data loader changes
+  // Listen for data loader changes and dispatch to subscribers
   hot.on("observable:file-change", (data: {path: string}) => {
-    const cbs = listeners.get("file-change");
-    if (cbs) for (const cb of cbs) cb(data);
+    dispatchHmrEvent("file-change", data);
   });
 
-  // Listen for config changes
+  // Listen for config changes and dispatch to subscribers
   hot.on("observable:config-change", (data: unknown) => {
-    const cbs = listeners.get("config-change");
-    if (cbs) for (const cb of cbs) cb(data);
+    dispatchHmrEvent("config-change", data);
   });
 }
 
 /**
- * Hook for React components to subscribe to file changes.
+ * Subscribe to file change events via the centralized listener system.
  * Used by useFileAttachment to invalidate cached data.
+ * Returns an unsubscribe function.
  */
-export function useHmrFileChange(callback: (path: string) => void): void {
-  if (typeof window === "undefined") return;
-  // Use import.meta.hot if available
-  const hot = (import.meta as any).hot;
-  if (!hot) return;
-
-  hot.on("observable:file-change", (data: {path: string}) => {
-    callback(data.path);
+export function useHmrFileChange(callback: (path: string) => void): () => void {
+  return onHmrEvent("file-change", (data) => {
+    callback((data as {path: string}).path);
   });
 }

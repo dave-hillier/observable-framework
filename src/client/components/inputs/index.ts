@@ -30,3 +30,6 @@ export type {ButtonInputProps} from "./ButtonInput.js";
 
 export {TableInput} from "./TableInput.js";
 export type {TableInputProps} from "./TableInput.js";
+
+export {FileInput} from "./FileInput.js";
+export type {FileInputProps} from "./FileInput.js";

@@ -23,8 +23,9 @@ export function generateReactPageShell(options: {
   reactDomBootstrapPath?: string; // Resolved (hashed) path for build mode
   frameworkReactPath?: string; // Resolved (hashed) path for build mode
   head?: string; // Custom head content from config/page (analytics, fonts, etc.)
+  strict?: boolean; // Enable React.StrictMode wrapper
 }): string {
-  const {title, siteTitle, stylesheets, modulePreloads, pageModulePath, bodyHtml, base = "/", isPreview, head} = options;
+  const {title, siteTitle, stylesheets, modulePreloads, pageModulePath, bodyHtml, base = "/", isPreview, head, strict = false} = options;
   const reactBootstrap = options.reactBootstrapPath ?? `${base}_observablehq/react-bootstrap.js`;
   const reactDomBootstrap = options.reactDomBootstrapPath ?? `${base}_observablehq/react-dom-bootstrap.js`;
   const frameworkReact = options.frameworkReactPath ?? `${base}_observablehq/framework-react.js`;
@@ -50,8 +51,9 @@ import {App} from "${escapeJs(frameworkReact)}";
 import Page from "${escapeJs(pageModulePath)}";
 
 const container = document.getElementById("observablehq-root");
-const reactRoot = ${bodyHtml ? "ReactDOM.hydrateRoot(container, React.createElement(Page));" : "ReactDOM.createRoot(container);"}
-${bodyHtml ? "" : "reactRoot.render(React.createElement(Page));"}
+const pageElement = ${strict ? "React.createElement(React.StrictMode, null, React.createElement(Page))" : "React.createElement(Page)"};
+const reactRoot = ${bodyHtml ? "ReactDOM.hydrateRoot(container, pageElement);" : "ReactDOM.createRoot(container);"}
+${bodyHtml ? "" : "reactRoot.render(pageElement);"}
 ${isPreview ? `
 // --- React Preview HMR ---
 (async function() {
@@ -113,7 +115,7 @@ ${isPreview ? `
             try {
               const mod = await import(pageModuleUrl + "?t=" + Date.now());
               const NewPage = mod.default;
-              if (NewPage) reactRoot.render(React.createElement(NewPage));
+              if (NewPage) reactRoot.render(${strict ? "React.createElement(React.StrictMode, null, React.createElement(NewPage))" : "React.createElement(NewPage)"});
             } catch (e) {
               console.error("HMR page reload failed:", e);
               location.reload();
