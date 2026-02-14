@@ -60,6 +60,7 @@ export {
   TexMath,
   DotDiagram,
   DuckDBProvider,
+  useDuckDB,
   useSQL,
 
   // Inputs

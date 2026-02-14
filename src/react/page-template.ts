@@ -1,5 +1,4 @@
 import type {Config} from "../config.js";
-import type {MarkdownPage} from "../markdown.js";
 
 /**
  * Generates the HTML shell for a React page.
@@ -19,8 +18,16 @@ export function generateReactPageShell(options: {
   bodyHtml?: string; // Pre-rendered HTML for SSG
   base?: string;
   isPreview?: boolean;
+  hash?: string; // Content hash for HMR change detection
+  reactBootstrapPath?: string; // Resolved (hashed) path for build mode
+  reactDomBootstrapPath?: string; // Resolved (hashed) path for build mode
+  frameworkReactPath?: string; // Resolved (hashed) path for build mode
+  head?: string; // Custom head content from config/page (analytics, fonts, etc.)
 }): string {
-  const {title, siteTitle, stylesheets, modulePreloads, pageModulePath, bodyHtml, base = "/", isPreview} = options;
+  const {title, siteTitle, stylesheets, modulePreloads, pageModulePath, bodyHtml, base = "/", isPreview, head} = options;
+  const reactBootstrap = options.reactBootstrapPath ?? `${base}_observablehq/react-bootstrap.js`;
+  const reactDomBootstrap = options.reactDomBootstrapPath ?? `${base}_observablehq/react-dom-bootstrap.js`;
+  const frameworkReact = options.frameworkReactPath ?? `${base}_observablehq/framework-react.js`;
 
   const fullTitle = [title, siteTitle].filter(Boolean).join(" | ");
 
@@ -32,24 +39,97 @@ export function generateReactPageShell(options: {
 ${fullTitle ? `<title>${escapeHtml(fullTitle)}</title>` : ""}
 ${stylesheets.map((href) => `<link rel="stylesheet" type="text/css" href="${escapeHtml(href)}">`).join("\n")}
 ${modulePreloads.map((href) => `<link rel="modulepreload" href="${escapeHtml(href)}">`).join("\n")}
+${head ?? ""}
 </head>
 <body>
 <div id="observablehq-root">${bodyHtml ?? ""}</div>
 <script type="module">
-import React from "${base}_observablehq/react.js";
-import ReactDOM from "${base}_observablehq/react-dom.js";
-import {App} from "${base}_observablehq/framework-react.js";
+import React from "${escapeJs(reactBootstrap)}";
+import ReactDOM from "${escapeJs(reactDomBootstrap)}";
+import {App} from "${escapeJs(frameworkReact)}";
 import Page from "${escapeJs(pageModulePath)}";
 
-const root = document.getElementById("observablehq-root");
-${bodyHtml ? "ReactDOM.hydrateRoot(root, React.createElement(Page));" : "ReactDOM.createRoot(root).render(React.createElement(Page));"}
+const container = document.getElementById("observablehq-root");
+const reactRoot = ${bodyHtml ? "ReactDOM.hydrateRoot(container, React.createElement(Page));" : "ReactDOM.createRoot(container);"}
+${bodyHtml ? "" : "reactRoot.render(React.createElement(Page));"}
 ${isPreview ? `
-// HMR support
-if (import.meta.hot) {
-  import.meta.hot.accept("${escapeJs(pageModulePath)}", (mod) => {
-    // React Fast Refresh handles component updates
-  });
-}
+// --- React Preview HMR ---
+(async function() {
+  const {registerFile} = await import("${escapeJs(frameworkReact)}");
+  let currentHash = ${JSON.stringify(options.hash ?? "")};
+  let pageModuleUrl = "${escapeJs(pageModulePath)}";
+  let reopenDelay = 1000;
+  const maxDelay = 30000;
+
+  function connect() {
+    const ws = new WebSocket(
+      Object.assign(new URL("/_observablehq", location.href), {
+        protocol: location.protocol === "https:" ? "wss" : "ws"
+      })
+    );
+    ws.onopen = () => {
+      reopenDelay = 1000;
+      ws.send(JSON.stringify({type: "hello", path: location.pathname, hash: currentHash}));
+    };
+    ws.onmessage = async (event) => {
+      const message = JSON.parse(event.data);
+      switch (message.type) {
+        case "welcome":
+          break;
+        case "reload":
+          location.reload();
+          break;
+        case "react-update": {
+          if (message.hash?.previous && message.hash.previous !== currentHash) {
+            location.reload();
+            break;
+          }
+          currentHash = message.hash?.current ?? currentHash;
+          // Update file registrations in-place
+          if (message.files) {
+            for (const name of message.files.removed ?? []) registerFile(name, null);
+            for (const file of message.files.added ?? []) registerFile(file.name, file);
+          }
+          // Update stylesheets
+          if (message.stylesheets) {
+            if (message.stylesheets.added?.length === 1 && message.stylesheets.removed?.length === 1) {
+              const link = document.head.querySelector('link[rel="stylesheet"][href="' + message.stylesheets.removed[0] + '"]');
+              if (link) link.href = message.stylesheets.added[0];
+            } else {
+              for (const href of message.stylesheets.added ?? []) {
+                const link = document.createElement("link");
+                link.rel = "stylesheet";
+                link.type = "text/css";
+                link.href = href;
+                document.head.appendChild(link);
+              }
+              for (const href of message.stylesheets.removed ?? []) {
+                document.head.querySelector('link[rel="stylesheet"][href="' + href + '"]')?.remove();
+              }
+            }
+          }
+          // Re-import the page module if content changed
+          if (message.pageChanged) {
+            try {
+              const mod = await import(pageModuleUrl + "?t=" + Date.now());
+              const NewPage = mod.default;
+              if (NewPage) reactRoot.render(React.createElement(NewPage));
+            } catch (e) {
+              console.error("HMR page reload failed:", e);
+              location.reload();
+            }
+          }
+          break;
+        }
+      }
+    };
+    ws.onclose = () => {
+      reopenDelay = Math.min(maxDelay, reopenDelay * 1.5);
+      setTimeout(connect, reopenDelay);
+    };
+  }
+  connect();
+})();
 ` : ""}
 </script>
 </body>

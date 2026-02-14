@@ -1,4 +1,4 @@
-import React, {lazy, Suspense, useCallback, useEffect, useState} from "react";
+import React, {Suspense, lazy, useCallback, useEffect, useState} from "react";
 import type {ReactNode} from "react";
 import {Loading} from "./Loading.js";
 import type {PageLayoutProps} from "./PageLayout.js";
@@ -54,7 +54,23 @@ export interface AppProps {
  * This replaces the server-rendered full-page HTML with a React SPA.
  */
 export function App({config, routes, initialPath}: AppProps) {
+  const base = config.base ?? "/";
   const [currentPath, setCurrentPath] = useState(() => initialPath ?? window.location.pathname);
+
+  // Strip the base prefix from a browser path to get the route-relative path.
+  // e.g., base="/myapp/", browserPath="/myapp/about" → "/about"
+  const stripBase = useCallback(
+    (browserPath: string) => {
+      if (base !== "/" && browserPath.startsWith(base)) {
+        const stripped = browserPath.slice(base.length - 1); // keep leading /
+        return stripped || "/";
+      }
+      return browserPath;
+    },
+    [base]
+  );
+
+  const effectivePath = stripBase(currentPath);
 
   // Listen for popstate (browser back/forward)
   useEffect(() => {
@@ -68,39 +84,38 @@ export function App({config, routes, initialPath}: AppProps) {
   // Client-side navigation
   const handleNavigate = useCallback(
     (path: string) => {
-      const base = config.base ?? "/";
-      const fullPath = path.startsWith("/") ? path : `${base}${path}`;
+      const fullPath = path.startsWith("/") ? `${base.replace(/\/$/, "")}${path}` : path;
       window.history.pushState(null, "", fullPath);
       setCurrentPath(fullPath);
       window.scrollTo(0, 0);
     },
-    [config.base]
+    [base]
   );
 
-  // Find the matching route
-  const route = routes.find((r) => matchPath(r.path, currentPath));
+  // Find the matching route using the base-stripped effective path
+  const route = routes.find((r) => matchPath(r.path, effectivePath));
   if (!route) {
     // Try 404 route
     const notFound = routes.find((r) => r.path === "/404");
     if (notFound) {
-      return renderRoute(notFound, config, currentPath, handleNavigate);
+      return renderRoute(notFound, config, effectivePath, handleNavigate);
     }
     return (
       <PageLayout
         siteTitle={config.title}
         sidebar={config.sidebar}
         pages={config.pages}
-        path={currentPath}
+        path={effectivePath}
         search={config.search}
         onNavigate={handleNavigate}
       >
         <h1>Page not found</h1>
-        <p>The page {currentPath} does not exist.</p>
+        <p>The page {effectivePath} does not exist.</p>
       </PageLayout>
     );
   }
 
-  return renderRoute(route, config, currentPath, handleNavigate);
+  return renderRoute(route, config, effectivePath, handleNavigate);
 }
 
 function renderRoute(

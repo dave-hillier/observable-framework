@@ -1,4 +1,6 @@
-import React, {useCallback, useEffect, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
+import {useSearch} from "../hooks/useSearch.js";
+import type {SearchResult} from "../hooks/useSearch.js";
 
 export interface SidebarPage {
   name: string;
@@ -50,12 +52,38 @@ export function Sidebar({
   className
 }: SidebarProps) {
   const [open, setOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchState = useSearch();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const hasResults = searchState.query.length > 0;
 
   // Close sidebar on navigation
   useEffect(() => {
     setOpen(false);
   }, [currentPath]);
+
+  // Global keyboard shortcut: Meta+K or / to focus search
+  useEffect(() => {
+    if (!search) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      } else if (e.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [search]);
+
+  // Scroll active result into view
+  useEffect(() => {
+    if (!resultsRef.current) return;
+    const active = resultsRef.current.querySelector(".observablehq-link-active");
+    if (active) active.scrollIntoView({block: "nearest"});
+  }, [searchState.activeIndex]);
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {
@@ -92,7 +120,7 @@ export function Sidebar({
         onChange={(e) => setOpen(e.target.checked)}
       />
       <label id="observablehq-sidebar-backdrop" htmlFor="observablehq-sidebar-toggle" />
-      <nav id="observablehq-sidebar" className={className}>
+      <nav id="observablehq-sidebar" className={`${className ?? ""}${hasResults ? " observablehq-search-results" : ""}`}>
         <ol>
           <label id="observablehq-sidebar-close" htmlFor="observablehq-sidebar-toggle" />
           <li className={`observablehq-link${isActive("/") ? " observablehq-link-active" : ""}`}>
@@ -103,66 +131,125 @@ export function Sidebar({
         </ol>
 
         {search && (
-          <div id="observablehq-search">
+          <div id="observablehq-search" data-shortcut={searchState.query ? "" : "/"}>
             <input
+              ref={searchInputRef}
               type="search"
               placeholder="Search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchState.query}
+              onChange={(e) => searchState.setQuery(e.target.value)}
+              onKeyDown={(e) => searchState.handleKeyDown(e, onNavigate)}
             />
           </div>
         )}
 
-        {pages.map((item, i) => {
-          if (isSection(item)) {
-            const SectionTag = item.collapsible ? "details" : "section";
-            const sectionActive = isSectionActive(item);
-
-            return (
-              <SectionTag
-                key={i}
-                className={sectionActive ? "observablehq-section-active" : undefined}
-                {...(item.collapsible && (item.open || sectionActive) ? {open: true} : {})}
-              >
-                {item.collapsible ? (
-                  <summary
-                    className={`observablehq-link${
-                      item.path != null && isActive(item.path) ? " observablehq-link-active" : ""
-                    }`}
-                  >
-                    {item.path != null ? (
-                      <a href={item.path} onClick={(e) => handleClick(e, item.path!)}>
-                        {item.name}
-                      </a>
-                    ) : (
-                      item.name
-                    )}
-                  </summary>
-                ) : (
-                  <div className="observablehq-section-header">{item.name}</div>
-                )}
+        {hasResults ? (
+          <div id="observablehq-search-results" ref={resultsRef}>
+            {searchState.results.length === 0 ? (
+              <div>no results</div>
+            ) : (
+              <>
+                <div>
+                  {searchState.results.length.toLocaleString("en-US")} result
+                  {searchState.results.length === 1 ? "" : "s"}
+                </div>
                 <ol>
-                  {item.pages.map((page, j) => (
-                    <SidebarLink
-                      key={j}
-                      page={page}
-                      active={isActive(page.path)}
+                  {searchState.results.map((result, i) => (
+                    <SearchResultItem
+                      key={result.id}
+                      result={result}
+                      active={i === searchState.activeIndex}
                       onClick={handleClick}
+                      onMouseEnter={() => searchState.setActiveIndex(i)}
                     />
                   ))}
                 </ol>
-              </SectionTag>
-            );
-          } else {
-            return (
-              <ol key={i}>
-                <SidebarLink page={item} active={isActive(item.path)} onClick={handleClick} />
-              </ol>
-            );
-          }
-        })}
+              </>
+            )}
+          </div>
+        ) : (
+          pages.map((item, i) => {
+            if (isSection(item)) {
+              const SectionTag = item.collapsible ? "details" : "section";
+              const sectionActive = isSectionActive(item);
+
+              return (
+                <SectionTag
+                  key={i}
+                  className={sectionActive ? "observablehq-section-active" : undefined}
+                  {...(item.collapsible && (item.open || sectionActive) ? {open: true} : {})}
+                >
+                  {item.collapsible ? (
+                    <summary
+                      className={`observablehq-link${
+                        item.path != null && isActive(item.path) ? " observablehq-link-active" : ""
+                      }`}
+                    >
+                      {item.path != null ? (
+                        <a href={item.path} onClick={(e) => handleClick(e, item.path!)}>
+                          {item.name}
+                        </a>
+                      ) : (
+                        item.name
+                      )}
+                    </summary>
+                  ) : (
+                    <div className="observablehq-section-header">{item.name}</div>
+                  )}
+                  <ol>
+                    {item.pages.map((page, j) => (
+                      <SidebarLink
+                        key={j}
+                        page={page}
+                        active={isActive(page.path)}
+                        onClick={handleClick}
+                      />
+                    ))}
+                  </ol>
+                </SectionTag>
+              );
+            } else {
+              return (
+                <ol key={i}>
+                  <SidebarLink page={item} active={isActive(item.path)} onClick={handleClick} />
+                </ol>
+              );
+            }
+          })
+        )}
       </nav>
     </>
+  );
+}
+
+function SearchResultItem({
+  result,
+  active,
+  onClick,
+  onMouseEnter
+}: {
+  result: SearchResult;
+  active: boolean;
+  onClick: (e: React.MouseEvent<HTMLAnchorElement>, path: string) => void;
+  onMouseEnter: () => void;
+}) {
+  const isExternal = /^\w+:/.test(result.id);
+  const scoreClass = Math.min(5, Math.round(0.6 * result.score));
+  return (
+    <li
+      data-score={scoreClass}
+      className={`observablehq-link${active ? " observablehq-link-active" : ""}`}
+      onMouseEnter={onMouseEnter}
+    >
+      <a
+        href={isExternal ? result.id : result.id}
+        target={isExternal ? "_blank" : undefined}
+        rel={isExternal ? "noopener noreferrer" : undefined}
+        onClick={isExternal ? undefined : (e) => onClick(e, result.id)}
+      >
+        <span>{result.title ?? "\u2014"}</span>
+      </a>
+    </li>
   );
 }
 

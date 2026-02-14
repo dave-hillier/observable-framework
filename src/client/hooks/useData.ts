@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 
 type Status = "pending" | "resolved" | "rejected";
 
@@ -103,7 +103,7 @@ export function useAsyncData<T>(loader: () => Promise<T>, deps: unknown[] = []):
     return () => {
       cancelled = true;
     };
-  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+  }, deps); // eslint-disable-line
 
   return state;
 }

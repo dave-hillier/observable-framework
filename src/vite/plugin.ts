@@ -1,10 +1,20 @@
 import {readFile} from "node:fs/promises";
 import {join, relative} from "node:path";
-import type {Plugin, ViteDevServer} from "vite";
+import type {Plugin} from "vite";
 import type {Config} from "../config.js";
 import {LoaderResolver} from "../loader.js";
-import {parseMarkdown} from "../markdown.js";
+import {createMarkdownIt, parseMarkdown} from "../markdown.js";
 import {compileMarkdownToReact} from "../react/compile.js";
+import {configToAppConfig, generateRouteDefinitionsModule} from "../react/render.js";
+import {generateAppEntryModule} from "../react/page-template.js";
+
+/**
+ * Virtual module IDs used by the plugin.
+ */
+const VIRTUAL_APP_ENTRY = "virtual:observable-app-entry";
+const VIRTUAL_ROUTES = "virtual:observable-routes";
+const VIRTUAL_CONFIG = "virtual:observable-config";
+const RESOLVED_VIRTUAL_PREFIX = "\0";
 
 /**
  * Options for the Observable Framework Vite plugin.
@@ -24,6 +34,7 @@ export interface ObservablePluginOptions {
  * 2. Serves data loader outputs via the dev server
  * 3. Handles file attachment resolution
  * 4. Supports HMR for markdown file changes
+ * 5. Provides virtual modules for app entry, routes, and config
  *
  * Usage in vite.config.ts:
  *   import {observablePlugin} from "@observablehq/framework/vite";
@@ -33,8 +44,9 @@ export interface ObservablePluginOptions {
  */
 export function observablePlugin(options: ObservablePluginOptions = {}): Plugin {
   const {root = "src"} = options;
-  let server: ViteDevServer;
   let loaders: LoaderResolver;
+  let fwConfig: Config | undefined = options.config;
+  const md = createMarkdownIt();
 
   return {
     name: "observable-framework",
@@ -46,9 +58,47 @@ export function observablePlugin(options: ObservablePluginOptions = {}): Plugin 
       loaders = new LoaderResolver({root: rootDir});
     },
 
-    configureServer(srv) {
-      server = srv;
+    /**
+     * Resolve virtual module IDs.
+     */
+    resolveId(id) {
+      if (id === VIRTUAL_APP_ENTRY || id === VIRTUAL_ROUTES || id === VIRTUAL_CONFIG) {
+        return RESOLVED_VIRTUAL_PREFIX + id;
+      }
+    },
 
+    /**
+     * Load virtual modules.
+     */
+    load(id) {
+      if (id === RESOLVED_VIRTUAL_PREFIX + VIRTUAL_CONFIG) {
+        if (!fwConfig) return `export const config = {};`;
+        const appConfig = configToAppConfig(fwConfig);
+        return `export const config = ${JSON.stringify(appConfig)};`;
+      }
+
+      if (id === RESOLVED_VIRTUAL_PREFIX + VIRTUAL_ROUTES) {
+        if (!fwConfig) return `export const routes = [];`;
+        return generateRouteDefinitionsModule(fwConfig, {
+          moduleBasePath: `./${root}`
+        });
+      }
+
+      if (id === RESOLVED_VIRTUAL_PREFIX + VIRTUAL_APP_ENTRY) {
+        if (!fwConfig) {
+          return `
+import React from "react";
+import ReactDOM from "react-dom/client";
+const root = ReactDOM.createRoot(document.getElementById("observablehq-root"));
+root.render(React.createElement("div", null, "No config provided"));`;
+        }
+        // Collect routes from config pages
+        const routes = collectRoutes(fwConfig, root);
+        return generateAppEntryModule(fwConfig, routes);
+      }
+    },
+
+    configureServer(srv) {
       // Serve data loader outputs
       srv.middlewares.use(async (req, res, next) => {
         if (!req.url) return next();
@@ -59,16 +109,15 @@ export function observablePlugin(options: ObservablePluginOptions = {}): Plugin 
           try {
             const loader = loaders.find(filePath);
             if (loader) {
-              const result = await loader.load();
-              if (result.path) {
-                const content = await readFile(result.path);
-                res.writeHead(200, {
-                  "Content-Type": result.mimeType ?? "application/octet-stream",
-                  "Cache-Control": "no-cache"
-                });
-                res.end(content);
-                return;
-              }
+              // Loader.load() returns the output file path as a string
+              const outputPath = await loader.load();
+              const content = await readFile(outputPath);
+              res.writeHead(200, {
+                "Content-Type": "application/octet-stream",
+                "Cache-Control": "no-cache"
+              });
+              res.end(content);
+              return;
             }
           } catch (err) {
             console.error(`Failed to load file: ${filePath}`, err);
@@ -102,14 +151,14 @@ export function observablePlugin(options: ObservablePluginOptions = {}): Plugin 
       if (!id.endsWith(".md")) return;
 
       // Only transform files within the source root
-      const rootDir = join(this.environment?.config?.root ?? process.cwd(), root);
+      const rootDir = join(process.cwd(), root);
       const relPath = relative(rootDir, id);
       if (relPath.startsWith("..")) return;
 
       try {
         // Parse the markdown (reuses Observable's existing parser)
-        const page = await parseMarkdown(code, {
-          root: rootDir,
+        const page = parseMarkdown(code, {
+          md,
           path: `/${relPath.replace(/\.md$/, "")}`
         });
 
@@ -148,18 +197,70 @@ export default function ErrorPage() {
 
     /**
      * Handle HMR for markdown files.
+     * Invalidates both the changed module and any virtual route modules
+     * that reference it.
      */
-    handleHotUpdate({file, server}) {
+    handleHotUpdate({file, server, modules}) {
       if (file.endsWith(".md")) {
-        // Invalidate the module and trigger a full update
+        // Invalidate the changed markdown module
         const module = server.moduleGraph.getModuleById(file);
         if (module) {
           server.moduleGraph.invalidateModule(module);
-          return [module];
         }
+
+        // Also invalidate the routes virtual module so lazy imports pick up changes
+        const routesModule = server.moduleGraph.getModuleById(RESOLVED_VIRTUAL_PREFIX + VIRTUAL_ROUTES);
+        if (routesModule) {
+          server.moduleGraph.invalidateModule(routesModule);
+        }
+
+        return modules;
       }
     }
   };
+}
+
+/**
+ * Collect route definitions from config pages for the app entry module.
+ */
+function collectRoutes(config: Config, root: string): Array<{path: string; modulePath: string; title?: string}> {
+  const routes: Array<{path: string; modulePath: string; title?: string}> = [];
+
+  // Index page
+  routes.push({
+    path: "/",
+    modulePath: `./${root}/index.md`,
+    title: config.title ?? "Home"
+  });
+
+  // Flatten pages from config
+  for (const item of config.pages) {
+    if ("pages" in item) {
+      // Section
+      if (item.path !== null) {
+        routes.push({
+          path: item.path,
+          modulePath: `./${root}${item.path}.md`,
+          title: item.name
+        });
+      }
+      for (const page of item.pages) {
+        routes.push({
+          path: page.path,
+          modulePath: `./${root}${page.path}.md`,
+          title: page.name
+        });
+      }
+    } else {
+      routes.push({
+        path: item.path,
+        modulePath: `./${root}${item.path}.md`,
+        title: item.name
+      });
+    }
+  }
+
+  return routes;
 }
 
 /**

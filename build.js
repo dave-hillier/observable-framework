@@ -20,5 +20,6 @@ await build({
   platform: "node",
   sourcemap: values.sourcemap ? "linked" : false,
   format: "esm",
+  jsx: "automatic",
   logLevel: "info"
 });

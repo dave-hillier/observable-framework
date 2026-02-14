@@ -16,6 +16,7 @@ const packages: [name: string, {version: string; contents?: string; dependencies
   ["echarts", {version: "5.5.0"}],
   ["exceljs", {version: "4.4.0"}],
   ["htl", {version: "0.3.1"}],
+  ["hyparquet", {version: "1.7.1"}],
   ["isoformat", {version: "0.2.1"}],
   ["jszip", {version: "3.10.1"}],
   ["katex", {version: "0.16.9"}],

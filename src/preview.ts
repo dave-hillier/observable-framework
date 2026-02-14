@@ -28,6 +28,7 @@ import type {LoaderResolver} from "./loader.js";
 import type {MarkdownCode, MarkdownPage} from "./markdown.js";
 import {populateNpmCache} from "./npm.js";
 import {isPathImport, resolvePath} from "./path.js";
+import {renderReactPage, renderReactPageModule} from "./react/render.js";
 import {renderModule, renderPage} from "./render.js";
 import type {Resolvers} from "./resolvers.js";
 import {getResolvers} from "./resolvers.js";
@@ -181,6 +182,13 @@ export class PreviewServer {
         const loader = loaders.find(path);
         if (!loader) throw enoent(path);
         send(req, await loader.load(), {root}).pipe(res);
+      } else if (pathname.startsWith("/_observablehq/react-pages/") && pathname.endsWith(".js")) {
+        // Serve compiled React page modules on-demand
+        const pagePath = pathname.slice("/_observablehq/react-pages".length, -".js".length);
+        const options = {...config, path: pagePath, preview: true as const};
+        const parse = await loaders.loadPage(pagePath, options);
+        const moduleCode = await renderReactPageModule(parse, options);
+        end(req, res, moduleCode, "text/javascript");
       } else {
         if ((pathname = normalize(pathname)).startsWith("..")) throw new Error("Invalid path: " + pathname);
 
@@ -216,7 +224,13 @@ export class PreviewServer {
         // Anything else should 404; static files should be matched above.
         const options = {...config, path: pathname, preview: true};
         const parse = await loaders.loadPage(pathname, options);
-        end(req, res, await renderPage(parse, options), "text/html");
+        if (config.react) {
+          // React mode: serve the React HTML shell with a compiled page module
+          const {html: reactHtml} = await renderReactPage(parse, options);
+          end(req, res, reactHtml, "text/html");
+        } else {
+          end(req, res, await renderPage(parse, options), "text/html");
+        }
       }
     } catch (error) {
       if (isEnoent(error)) {
@@ -236,8 +250,13 @@ export class PreviewServer {
         try {
           const options = {...config, path: "/404", preview: true};
           const parse = await loaders.loadPage("/404", options);
-          const html = await renderPage(parse, options);
-          end(req, res, html, "text/html");
+          if (config.react) {
+            const {html: reactHtml} = await renderReactPage(parse, options);
+            end(req, res, reactHtml, "text/html");
+          } else {
+            const html = await renderPage(parse, options);
+            end(req, res, html, "text/html");
+          }
           return;
         } catch {
           // ignore secondary error (e.g., no 404.md); show the original 404
@@ -363,6 +382,39 @@ function handleWatch(socket: WebSocket, req: IncomingMessage, configPromise: Pro
         }
         const resolvers = await getResolvers(page, {path, ...config});
         if (hash === resolvers.hash) break;
+
+        // In React mode, send targeted updates instead of a full page reload.
+        // Detect whether only file attachments changed or the page content also changed.
+        if (config.react) {
+          const previousHash = hash!;
+          const previousFiles = files!;
+          const previousStylesheets = stylesheets!;
+          hash = resolvers.hash;
+          const newFiles = getFiles(resolvers);
+          const newStylesheets = Array.from(resolvers.stylesheets, resolvers.resolveStylesheet);
+          const filePatch = diffFiles(previousFiles, newFiles, getInfoResolver(loaders, path));
+          const stylesheetPatch = diffStylesheets(previousStylesheets, newStylesheets);
+          // Detect whether page content (body, code) changed or only files/stylesheets
+          const newHtml = getHtml(page, resolvers);
+          const newCode = getCode(page, resolvers);
+          const htmlChanged = JSON.stringify(newHtml) !== JSON.stringify(html);
+          const codeChanged = JSON.stringify(Array.from(newCode)) !== JSON.stringify(Array.from(code ?? new Map()));
+          html = newHtml;
+          code = newCode;
+          files = newFiles;
+          stylesheets = newStylesheets;
+          send({
+            type: "react-update",
+            pageChanged: htmlChanged || codeChanged,
+            files: filePatch,
+            stylesheets: stylesheetPatch,
+            hash: {previous: previousHash, current: hash}
+          });
+          attachmentWatcher?.close();
+          attachmentWatcher = await loaders.watchFiles(path, getWatchFiles(resolvers), () => watcher("change"));
+          break;
+        }
+
         const previousHash = hash!;
         const previousHtml = html!;
         const previousCode = code!;
