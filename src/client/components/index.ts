@@ -22,7 +22,7 @@ export {TexMath} from "./TexMath.js";
 export type {TexMathProps} from "./TexMath.js";
 export {DotDiagram} from "./DotDiagram.js";
 export type {DotDiagramProps} from "./DotDiagram.js";
-export {DuckDBProvider, useSQL} from "./DuckDBProvider.js";
+export {DuckDBProvider, useDuckDB, useSQL} from "./DuckDBProvider.js";
 export type {DuckDBProviderProps, QueryResult} from "./DuckDBProvider.js";
 
 // Input components (re-exported for convenience)

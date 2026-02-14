@@ -27,6 +27,8 @@ export interface CompileOptions {
   resolveFile?: (name: string) => string;
   /** File metadata for registerFile() calls in the compiled module */
   files?: FileRegistration[];
+  /** SQL table registrations from front-matter: {tableName: source} */
+  sql?: Record<string, string>;
 }
 
 /**
@@ -40,7 +42,7 @@ export interface CompileOptions {
  * The output is a valid ES module that default-exports a React component.
  */
 export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptions): string {
-  const {path, params, resolveImport = (s) => s, resolveFile = (s) => s, files = []} = options;
+  const {path, params, resolveImport = (s) => s, resolveFile = (s) => s, files = [], sql = {}} = options;
   const {code} = page;
 
   // Collect all cell analysis info
@@ -90,9 +92,12 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   imports.push(`import {ErrorBoundary} from ${JSON.stringify(componentsSpec)};`);
   imports.push(`import {Loading} from ${JSON.stringify(componentsSpec)};`);
 
+  const hasSql = Object.keys(sql).length > 0;
+
   if (needsWidth) imports.push(`import {useWidthRef} from ${JSON.stringify(hooksSpec)};`);
   if (needsDark) imports.push(`import {useDark} from ${JSON.stringify(hooksSpec)};`);
   if (needsNow) imports.push(`import {useNow} from ${JSON.stringify(hooksSpec)};`);
+  if (hasSql) imports.push(`import {DuckDBProvider} from ${JSON.stringify(componentsSpec)};`);
 
   // Collect imports from code cells using the AST (not regex)
   const cellImportStatements = collectCellImports(code, resolveImport);
@@ -161,12 +166,18 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   lines.push("");
   lines.push(`  return (`);
   lines.push(`    <CellProvider>`);
+  if (hasSql) {
+    lines.push(`      <DuckDBProvider tables={${JSON.stringify(sql)}}>`);
+  }
   if (needsWidth) {
     lines.push(`      <div ref={__mainRef}>`);
   }
   lines.push(pageBody);
   if (needsWidth) {
     lines.push(`      </div>`);
+  }
+  if (hasSql) {
+    lines.push(`      </DuckDBProvider>`);
   }
   lines.push(`    </CellProvider>`);
   lines.push(`  );`);

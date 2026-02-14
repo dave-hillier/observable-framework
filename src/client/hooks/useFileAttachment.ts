@@ -14,6 +14,20 @@ export interface FileMetadata {
 // Global registry of known files, populated at page initialization
 const fileRegistry = new Map<string, FileMetadata>();
 
+// Subscription support for reactive file updates (used by DuckDBProvider)
+const fileListeners = new Set<(name: string, metadata: FileMetadata | null) => void>();
+
+/** Subscribe to file registry changes. Returns an unsubscribe function. */
+export function onFileChange(listener: (name: string, metadata: FileMetadata | null) => void): () => void {
+  fileListeners.add(listener);
+  return () => fileListeners.delete(listener);
+}
+
+/** Look up file metadata by name. */
+export function getFileMetadata(name: string): FileMetadata | undefined {
+  return fileRegistry.get(name);
+}
+
 /** Register a file for use with useFileAttachment. Called by generated page code. */
 export function registerFile(name: string, metadata: FileMetadata | null): void {
   if (metadata === null) {
@@ -21,6 +35,7 @@ export function registerFile(name: string, metadata: FileMetadata | null): void 
   } else {
     fileRegistry.set(name, metadata);
   }
+  for (const listener of fileListeners) listener(name, metadata);
 }
 
 /**

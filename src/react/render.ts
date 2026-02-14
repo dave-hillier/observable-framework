@@ -45,7 +45,8 @@ export async function renderReactPage(
     path,
     params: undefined,
     resolveImport,
-    resolveFile
+    resolveFile,
+    sql: data.sql
   });
 
   // Build the page module path that will be served by the dev server
@@ -91,6 +92,7 @@ export async function renderReactPageModule(
   options: ReactRenderOptions
 ): Promise<string> {
   const {path} = options;
+  const {data} = page;
   const {resolvers = await getResolvers(page, options)} = options;
   const {resolveImport, resolveFile} = resolvers;
 
@@ -98,7 +100,8 @@ export async function renderReactPageModule(
     path,
     params: undefined,
     resolveImport,
-    resolveFile
+    resolveFile,
+    sql: data.sql
   });
 }
 

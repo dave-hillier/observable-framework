@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import {generateReactPageShell} from "../src/react/page-template.js";
 import {extractStaticHtml} from "../src/react/ssr.js";
+import {compileMarkdownToReact} from "../src/react/compile.js";
 import type {MarkdownPage} from "../src/markdown.js";
 
 // =============================================================================
@@ -142,5 +143,135 @@ describe("SSG static HTML extraction", () => {
     });
     assert.ok(html.includes("createRoot"), "should use createRoot for CSR");
     assert.ok(!html.includes("hydrateRoot"), "should not use hydrateRoot");
+  });
+});
+
+// =============================================================================
+// Advanced DuckDB table registration
+// =============================================================================
+
+describe("DuckDB table registration", () => {
+  it("DuckDBProvider exports expected API", async () => {
+    const mod = await import("../src/client/components/DuckDBProvider.js");
+    assert.strictEqual(typeof mod.DuckDBProvider, "function");
+    assert.strictEqual(typeof mod.useDuckDB, "function");
+    assert.strictEqual(typeof mod.useSQL, "function");
+  });
+
+  it("file registry supports change subscriptions", async () => {
+    const {registerFile, onFileChange, getFileMetadata} = await import("../src/client/hooks/useFileAttachment.js");
+    const changes: {name: string; meta: any}[] = [];
+    const unsub = onFileChange((name, meta) => changes.push({name, meta}));
+
+    registerFile("test-sub.csv", {name: "test-sub.csv", path: "/_file/test-sub.csv?sha=abc", mimeType: "text/csv"});
+    assert.strictEqual(changes.length, 1);
+    assert.strictEqual(changes[0].name, "test-sub.csv");
+    assert.strictEqual(changes[0].meta.mimeType, "text/csv");
+
+    registerFile("test-sub.csv", null);
+    assert.strictEqual(changes.length, 2);
+    assert.strictEqual(changes[1].meta, null);
+
+    unsub();
+    registerFile("test-sub2.csv", {name: "test-sub2.csv", path: "/_file/test-sub2.csv", mimeType: "text/csv"});
+    assert.strictEqual(changes.length, 2, "should not receive events after unsubscribe");
+
+    // Clean up
+    registerFile("test-sub2.csv", null);
+  });
+
+  it("getFileMetadata returns registered file info", async () => {
+    const {registerFile, getFileMetadata} = await import("../src/client/hooks/useFileAttachment.js");
+
+    registerFile("test-meta.parquet", {
+      name: "test-meta.parquet",
+      path: "/_file/test-meta.parquet?sha=xyz",
+      mimeType: "application/vnd.apache.parquet",
+      size: 12345
+    });
+
+    const meta = getFileMetadata("test-meta.parquet");
+    assert.ok(meta);
+    assert.strictEqual(meta!.mimeType, "application/vnd.apache.parquet");
+    assert.strictEqual(meta!.size, 12345);
+    assert.strictEqual(meta!.path, "/_file/test-meta.parquet?sha=xyz");
+
+    assert.strictEqual(getFileMetadata("nonexistent.csv"), undefined);
+
+    // Clean up
+    registerFile("test-meta.parquet", null);
+  });
+});
+
+// =============================================================================
+// SQL front-matter → DuckDBProvider compile integration
+// =============================================================================
+
+describe("SQL front-matter compile integration", () => {
+  it("wraps page in DuckDBProvider when sql front-matter is present", () => {
+    const page = {
+      body: "<h1>Dashboard</h1>",
+      title: "Dashboard",
+      head: null,
+      header: null,
+      footer: null,
+      code: [],
+      data: {sql: {sales: "/data/sales.parquet", customers: "/data/customers.csv"}},
+      style: null
+    } as unknown as MarkdownPage;
+
+    const output = compileMarkdownToReact(page, {
+      path: "/dashboard",
+      sql: {sales: "/data/sales.parquet", customers: "/data/customers.csv"}
+    });
+
+    assert.ok(output.includes("DuckDBProvider"), "should include DuckDBProvider component");
+    assert.ok(output.includes("import {DuckDBProvider}"), "should import DuckDBProvider");
+    assert.ok(output.includes("/data/sales.parquet"), "should include table source for sales");
+    assert.ok(output.includes("/data/customers.csv"), "should include table source for customers");
+  });
+
+  it("does not include DuckDBProvider when no sql front-matter", () => {
+    const page = {
+      body: "<h1>Simple Page</h1>",
+      title: "Simple",
+      head: null,
+      header: null,
+      footer: null,
+      code: [],
+      data: {},
+      style: null
+    } as unknown as MarkdownPage;
+
+    const output = compileMarkdownToReact(page, {path: "/simple"});
+    assert.ok(!output.includes("DuckDBProvider"), "should not include DuckDBProvider");
+  });
+
+  it("passes SQL query sources (non-file paths) through to DuckDBProvider", () => {
+    const page = {
+      body: "<h1>Views</h1>",
+      title: "Views",
+      head: null,
+      header: null,
+      footer: null,
+      code: [],
+      data: {sql: {
+        raw: "/data/raw.csv",
+        summary: "SELECT region, SUM(amount) FROM raw GROUP BY region"
+      }},
+      style: null
+    } as unknown as MarkdownPage;
+
+    const output = compileMarkdownToReact(page, {
+      path: "/views",
+      sql: {
+        raw: "/data/raw.csv",
+        summary: "SELECT region, SUM(amount) FROM raw GROUP BY region"
+      }
+    });
+
+    assert.ok(output.includes("DuckDBProvider"), "should include DuckDBProvider");
+    assert.ok(output.includes("/data/raw.csv"), "should include file path source");
+    assert.ok(output.includes("SELECT region"), "should include SQL query source");
   });
 });
