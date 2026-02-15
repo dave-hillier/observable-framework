@@ -36,18 +36,36 @@ function applyThemeToDocument(dark: boolean): void {
  * - "light": forces light mode
  *
  * Returns `true` when dark mode is active, `false` otherwise.
- * Updates automatically when the user changes their OS theme preference
- * or when the stored preference changes.
+ * Updates automatically when the user changes their OS theme preference,
+ * when the stored preference changes (same tab or cross-tab via storage event).
  */
 export function useDark(): boolean {
-  const [preference] = useState<ThemePreference>(getStoredPreference);
+  const [preference, setPreference] = useState<ThemePreference>(getStoredPreference);
   const [systemDark, setSystemDark] = useState(getSystemDark);
 
+  // Listen for system dark mode changes
   useEffect(() => {
     const mq = window.matchMedia(DARK_QUERY);
     const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  // Listen for cross-tab storage changes and same-tab custom events
+  // so that useDark stays in sync when useThemePreference changes the preference.
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY || e.key === null) {
+        setPreference(getStoredPreference());
+      }
+    };
+    const handleCustom = () => setPreference(getStoredPreference());
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("observablehq-theme-change", handleCustom);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("observablehq-theme-change", handleCustom);
+    };
   }, []);
 
   const dark = preference === "dark" ? true : preference === "light" ? false : systemDark;
@@ -94,6 +112,11 @@ export function useThemePreference(): {
       }
     } catch {
       // localStorage may be unavailable
+    }
+    // Dispatch a custom event so other useDark() instances in the same tab
+    // pick up the change (storage events only fire cross-tab).
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("observablehq-theme-change"));
     }
   }, []);
 

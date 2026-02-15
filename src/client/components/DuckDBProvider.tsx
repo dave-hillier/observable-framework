@@ -85,6 +85,18 @@ function resolveSourceUrl(source: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// SQL escaping helpers
+// ---------------------------------------------------------------------------
+
+function escapeSqlIdentifier(name: string): string {
+  return '"' + name.replace(/"/g, '""') + '"';
+}
+
+function escapeSqlString(value: string): string {
+  return "'" + value.replace(/'/g, "''") + "'";
+}
+
+// ---------------------------------------------------------------------------
 // Format-aware table insertion (mirrors src/client/stdlib/duckdb.js logic)
 // ---------------------------------------------------------------------------
 
@@ -112,7 +124,7 @@ async function insertFileTable(
           // If CSV parsing fails with conversion error, retry with all-varchar
           if (error?.toString().includes("Could not convert")) {
             const stmt = await conn.prepare(
-              `CREATE OR REPLACE TABLE "${name}" AS SELECT * FROM read_csv_auto(?, ALL_VARCHAR=TRUE)`
+              `CREATE OR REPLACE TABLE ${escapeSqlIdentifier(name)} AS SELECT * FROM read_csv_auto(?, ALL_VARCHAR=TRUE)`
             );
             await stmt.send(fileName);
           } else {
@@ -133,15 +145,14 @@ async function insertFileTable(
       const buffer = new Uint8Array(await response.arrayBuffer());
       await conn.insertArrowFromIPCStream(buffer, {name, schema: "main"});
     } else if (/\.parquet$/i.test(fileName)) {
-      // Use VIEW for large files, TABLE for small ones
       await conn.query(
-        `CREATE OR REPLACE TABLE "${name}" AS SELECT * FROM parquet_scan('${fileName}')`
+        `CREATE OR REPLACE TABLE ${escapeSqlIdentifier(name)} AS SELECT * FROM parquet_scan(${escapeSqlString(fileName)})`
       );
     } else if (/\.(db|ddb|duckdb)$/i.test(fileName)) {
-      await conn.query(`ATTACH '${fileName}' AS "${name}" (READ_ONLY)`);
+      await conn.query(`ATTACH ${escapeSqlString(fileName)} AS ${escapeSqlIdentifier(name)} (READ_ONLY)`);
     } else {
       // Let DuckDB auto-detect the format
-      await conn.query(`CREATE OR REPLACE TABLE "${name}" AS SELECT * FROM '${fileName}'`);
+      await conn.query(`CREATE OR REPLACE TABLE ${escapeSqlIdentifier(name)} AS SELECT * FROM ${escapeSqlString(fileName)}`);
     }
   } finally {
     await conn.close();
@@ -151,7 +162,7 @@ async function insertFileTable(
 async function insertSqlView(db: any, name: string, sql: string): Promise<void> {
   const conn = await db.connect();
   try {
-    await conn.query(`CREATE OR REPLACE VIEW "${name}" AS ${sql}`);
+    await conn.query(`CREATE OR REPLACE VIEW ${escapeSqlIdentifier(name)} AS ${sql}`);
   } finally {
     await conn.close();
   }
@@ -170,12 +181,12 @@ async function dropTable(db: any, name: string): Promise<void> {
   try {
     // Try dropping as table first, then as view
     try {
-      await conn.query(`DROP TABLE IF EXISTS "${name}"`);
+      await conn.query(`DROP TABLE IF EXISTS ${escapeSqlIdentifier(name)}`);
     } catch {
       // ignore
     }
     try {
-      await conn.query(`DROP VIEW IF EXISTS "${name}"`);
+      await conn.query(`DROP VIEW IF EXISTS ${escapeSqlIdentifier(name)}`);
     } catch {
       // ignore
     }
@@ -276,6 +287,10 @@ export function DuckDBProvider({tables = {}, children}: DuckDBProviderProps) {
 
     return () => {
       cancelled = true;
+      if (dbRef.current) {
+        dbRef.current.terminate();
+        dbRef.current = null;
+      }
     };
   }, []);
 
@@ -416,7 +431,7 @@ export function DuckDBProvider({tables = {}, children}: DuckDBProviderProps) {
         if (!db) throw new Error("DuckDB not initialized");
         const conn = await db.connect();
         try {
-          const result = await conn.query(`DESCRIBE "${table}"`);
+          const result = await conn.query(`DESCRIBE ${escapeSqlIdentifier(table)}`);
           return result.toArray().map((row: any) => {
             const r = row.toJSON();
             return {

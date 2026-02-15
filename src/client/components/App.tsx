@@ -4,6 +4,19 @@ import {Loading} from "./Loading.js";
 import type {PageLayoutProps} from "./PageLayout.js";
 import {PageLayout} from "./PageLayout.js";
 
+// Cache for lazy-loaded page components to avoid re-creating them on every render.
+// Without this, React.lazy() called in render creates a new component identity each
+// time, causing unmount/remount and re-triggering Suspense on every state change.
+const lazyCache = new Map<() => Promise<{default: React.ComponentType}>, React.LazyExoticComponent<React.ComponentType>>();
+function getLazyComponent(loader: () => Promise<{default: React.ComponentType}>): React.LazyExoticComponent<React.ComponentType> {
+  let component = lazyCache.get(loader);
+  if (!component) {
+    component = lazy(loader);
+    lazyCache.set(loader, component);
+  }
+  return component;
+}
+
 /**
  * Configuration object provided by the framework build system.
  * Maps to observablehq.config.ts values.
@@ -98,7 +111,7 @@ export function App({config, routes, initialPath}: AppProps) {
     // Try 404 route
     const notFound = routes.find((r) => r.path === "/404");
     if (notFound) {
-      return renderRoute(notFound, config, effectivePath, handleNavigate);
+      return <RouteRenderer route={notFound} config={config} currentPath={effectivePath} onNavigate={handleNavigate} />;
     }
     return (
       <PageLayout
@@ -115,16 +128,21 @@ export function App({config, routes, initialPath}: AppProps) {
     );
   }
 
-  return renderRoute(route, config, effectivePath, handleNavigate);
+  return <RouteRenderer route={route} config={config} currentPath={effectivePath} onNavigate={handleNavigate} />;
 }
 
-function renderRoute(
-  route: RouteDefinition,
-  config: AppConfig,
-  currentPath: string,
-  onNavigate: (path: string) => void
-) {
-  const LazyPage = lazy(route.component);
+function RouteRenderer({
+  route,
+  config,
+  currentPath,
+  onNavigate
+}: {
+  route: RouteDefinition;
+  config: AppConfig;
+  currentPath: string;
+  onNavigate: (path: string) => void;
+}) {
+  const LazyPage = getLazyComponent(route.component);
 
   return (
     <PageLayout

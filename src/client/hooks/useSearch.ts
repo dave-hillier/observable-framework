@@ -10,7 +10,7 @@ interface MiniSearchIndex {
   search(query: string, options?: Record<string, unknown>): SearchResult[];
 }
 
-let _indexPromise: Promise<MiniSearchIndex> | null = null;
+const _indexCache = new Map<string, Promise<MiniSearchIndex>>();
 
 function processTerm(term: string): string {
   return term
@@ -20,30 +20,38 @@ function processTerm(term: string): string {
     .toLowerCase();
 }
 
-function loadSearchIndex(): Promise<MiniSearchIndex> {
-  if (!_indexPromise) {
-    _indexPromise = (async () => {
-      const MiniSearch = (await import("minisearch")).default;
-      const response = await fetch("/_observablehq/minisearch.json");
-      if (!response.ok) throw new Error(`unable to load minisearch.json: ${response.status}`);
-      const json = await response.json();
-      return MiniSearch.loadJS(json, {
-        ...json.options,
-        searchOptions: {
-          boostDocument: (id: string) => (/^\w+:/.test(id) ? 1 / 3 : 1)
-        },
-        processTerm
-      }) as unknown as MiniSearchIndex;
-    })();
+function loadSearchIndex(base: string = "/"): Promise<MiniSearchIndex> {
+  const key = base;
+  if (!_indexCache.has(key)) {
+    const normalizedBase = base.endsWith("/") ? base : base + "/";
+    _indexCache.set(
+      key,
+      (async () => {
+        const MiniSearch = (await import("minisearch")).default;
+        const response = await fetch(`${normalizedBase}_observablehq/minisearch.json`);
+        if (!response.ok) throw new Error(`unable to load minisearch.json: ${response.status}`);
+        const json = await response.json();
+        return MiniSearch.loadJS(json, {
+          ...json.options,
+          searchOptions: {
+            boostDocument: (id: string) => (/^\w+:/.test(id) ? 1 / 3 : 1)
+          },
+          processTerm
+        }) as unknown as MiniSearchIndex;
+      })()
+    );
   }
-  return _indexPromise;
+  return _indexCache.get(key)!;
 }
 
 /**
  * React hook that provides search functionality against the minisearch index.
  * Loads the index lazily on first use.
+ *
+ * @param base - Base URL path for the site (defaults to "/"). Used to locate
+ *               the minisearch.json index file.
  */
-export function useSearch() {
+export function useSearch(base: string = "/") {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -54,7 +62,7 @@ export function useSearch() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    loadSearchIndex().then(
+    loadSearchIndex(base).then(
       (index) => {
         if (!cancelled) {
           indexRef.current = index;

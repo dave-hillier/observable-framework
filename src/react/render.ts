@@ -6,6 +6,7 @@ import {findLink} from "../pager.js";
 import type {Resolvers} from "../resolvers.js";
 import {getResolvers} from "../resolvers.js";
 import {compileMarkdownToReact} from "./compile.js";
+import type {FileRegistration} from "./compile.js";
 import {generateReactPageShell} from "./page-template.js";
 import type {AppConfig, RouteDefinition} from "../client/components/App.js";
 import type {SidebarItem, SidebarPage, SidebarSection} from "../client/components/Sidebar.js";
@@ -40,12 +41,19 @@ export async function renderReactPage(
   const toc = mergeToc(data.toc, options.toc);
   const {resolveImport, resolveFile, resolveStylesheet, stylesheets, staticImports} = resolvers;
 
+  // Build file registrations so FileAttachment() resolves correctly
+  const fileRegistrations: FileRegistration[] = [];
+  for (const name of resolvers.files) {
+    fileRegistrations.push({name, path: resolveFile(name)});
+  }
+
   // Compile the markdown page to a React component module
   const pageModule = compileMarkdownToReact(page, {
     path,
-    params: undefined,
+    params: page.params,
     resolveImport,
     resolveFile,
+    files: fileRegistrations,
     sql: data.sql
   });
 
@@ -97,11 +105,18 @@ export async function renderReactPageModule(
   const {resolvers = await getResolvers(page, options)} = options;
   const {resolveImport, resolveFile} = resolvers;
 
+  // Build file registrations so FileAttachment() resolves correctly in preview
+  const fileRegistrations: FileRegistration[] = [];
+  for (const name of resolvers.files) {
+    fileRegistrations.push({name, path: resolveFile(name)});
+  }
+
   return compileMarkdownToReact(page, {
     path,
-    params: undefined,
+    params: page.params,
     resolveImport,
     resolveFile,
+    files: fileRegistrations,
     sql: data.sql
   });
 }
@@ -112,6 +127,10 @@ export async function renderReactPageModule(
  * expected by the App and Sidebar React components.
  */
 export function configToAppConfig(config: Config): AppConfig {
+  // Evaluate header/footer if they are functions or strings.
+  // Functions receive {title, path} context; strings are used directly.
+  const header = typeof config.header === "function" ? config.header({title: config.title}) : config.header;
+  const footer = typeof config.footer === "function" ? config.footer({title: config.title}) : config.footer;
   return {
     title: config.title,
     pages: configPagesToSidebarItems(config.pages),
@@ -119,7 +138,9 @@ export function configToAppConfig(config: Config): AppConfig {
     search: !!config.search,
     toc: config.toc,
     pager: config.pager,
-    base: config.base
+    base: config.base,
+    header: header ?? undefined,
+    footer: footer ?? undefined
   };
 }
 

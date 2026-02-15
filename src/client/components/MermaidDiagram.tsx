@@ -37,7 +37,8 @@ export function MermaidDiagram({source, className}: MermaidDiagramProps) {
       } catch (err) {
         if (!cancelled) {
           console.error("Mermaid rendering error:", err);
-          setSvg(`<pre class="observablehq--error">${String(err)}</pre>`);
+          const escaped = String(err).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          setSvg(`<pre class="observablehq--error">${escaped}</pre>`);
         }
       }
     })();
