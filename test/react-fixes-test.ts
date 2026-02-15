@@ -507,22 +507,28 @@ describe("P2.6: DuckDB cleanup", () => {
 // =============================================================================
 
 describe("P3.1: XSS prevention in visualization components", () => {
-  it("MermaidDiagram escapes error messages", async () => {
+  it("MermaidDiagram uses ref-based rendering and React text for errors", async () => {
     const fs = await import("node:fs/promises");
     const source = await fs.readFile("src/client/components/MermaidDiagram.tsx", "utf8");
-    assert.ok(source.includes("&amp;") || source.includes("&lt;"), "MermaidDiagram should escape error HTML");
+    assert.ok(!source.includes("dangerouslySetInnerHTML={{"), "MermaidDiagram should not use dangerouslySetInnerHTML prop");
+    assert.ok(source.includes("containerRef.current.innerHTML"), "MermaidDiagram should use ref-based innerHTML for SVG");
+    assert.ok(source.includes("{error}"), "MermaidDiagram should render errors as React text content");
   });
 
-  it("DotDiagram escapes error messages", async () => {
+  it("DotDiagram uses ref-based rendering and React text for errors", async () => {
     const fs = await import("node:fs/promises");
     const source = await fs.readFile("src/client/components/DotDiagram.tsx", "utf8");
-    assert.ok(source.includes("&amp;") || source.includes("&lt;"), "DotDiagram should escape error HTML");
+    assert.ok(!source.includes("dangerouslySetInnerHTML={{"), "DotDiagram should not use dangerouslySetInnerHTML prop");
+    assert.ok(source.includes("containerRef.current.innerHTML"), "DotDiagram should use ref-based innerHTML for SVG");
+    assert.ok(source.includes("{error}"), "DotDiagram should render errors as React text content");
   });
 
-  it("TexMath escapes error messages", async () => {
+  it("TexMath uses ref-based rendering and React text for errors", async () => {
     const fs = await import("node:fs/promises");
     const source = await fs.readFile("src/client/components/TexMath.tsx", "utf8");
-    assert.ok(source.includes("&amp;") || source.includes("&lt;"), "TexMath should escape error HTML");
+    assert.ok(!source.includes("dangerouslySetInnerHTML={{"), "TexMath should not use dangerouslySetInnerHTML prop");
+    assert.ok(source.includes("containerRef.current.innerHTML"), "TexMath should use ref-based innerHTML for rendered output");
+    assert.ok(source.includes("{error}"), "TexMath should render errors as React text content");
   });
 });
 

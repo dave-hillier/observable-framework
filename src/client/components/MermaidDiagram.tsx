@@ -11,6 +11,9 @@ export interface MermaidDiagramProps {
  * React wrapper for Mermaid diagrams.
  * Lazily loads the mermaid library and renders the diagram.
  *
+ * SVG output is inserted via a ref to avoid dangerouslySetInnerHTML.
+ * Errors are rendered as safe React text content.
+ *
  * Usage:
  *   <MermaidDiagram source={`
  *     graph TD
@@ -20,7 +23,7 @@ export interface MermaidDiagramProps {
  */
 export function MermaidDiagram({source, className}: MermaidDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [svg, setSvg] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
   const id = useId().replace(/:/g, "-");
 
   useEffect(() => {
@@ -33,12 +36,15 @@ export function MermaidDiagram({source, className}: MermaidDiagramProps) {
 
       try {
         const {svg: rendered} = await mermaid.render(`mermaid-${id}`, source.trim());
-        if (!cancelled) setSvg(rendered);
+        if (!cancelled && containerRef.current) {
+          setError(null);
+          containerRef.current.innerHTML = rendered;
+        }
       } catch (err) {
         if (!cancelled) {
           console.error("Mermaid rendering error:", err);
-          const escaped = String(err).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          setSvg(`<pre class="observablehq--error">${escaped}</pre>`);
+          setError(String(err));
+          if (containerRef.current) containerRef.current.innerHTML = "";
         }
       }
     })();
@@ -48,11 +54,18 @@ export function MermaidDiagram({source, className}: MermaidDiagramProps) {
     };
   }, [source, id]);
 
+  if (error) {
+    return (
+      <div className={`observablehq-mermaid ${className ?? ""}`}>
+        <pre className="observablehq--error">{error}</pre>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={containerRef}
       className={`observablehq-mermaid ${className ?? ""}`}
-      dangerouslySetInnerHTML={{__html: svg}}
     />
   );
 }

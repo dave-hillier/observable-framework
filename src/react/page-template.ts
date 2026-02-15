@@ -7,7 +7,7 @@ import type {Config} from "../config.js";
  * Instead of embedding define() calls in the HTML, this shell:
  * 1. Loads the React runtime
  * 2. Loads the compiled page component
- * 3. Hydrates the server-rendered HTML (SSG) or renders client-side
+ * 3. Renders the page client-side (SSG HTML provides fast first-paint only)
  */
 export function generateReactPageShell(options: {
   title?: string;
@@ -15,7 +15,7 @@ export function generateReactPageShell(options: {
   stylesheets: string[];
   modulePreloads: string[];
   pageModulePath: string;
-  bodyHtml?: string; // Pre-rendered HTML for SSG
+  bodyHtml?: string; // Pre-rendered HTML for SSG (fast first-paint only; not hydrated since React's tree won't match)
   base?: string;
   isPreview?: boolean;
   hash?: string; // Content hash for HMR change detection
@@ -52,8 +52,8 @@ import Page from "${escapeJs(pageModulePath)}";
 
 const container = document.getElementById("observablehq-root");
 const pageElement = ${strict ? "React.createElement(React.StrictMode, null, React.createElement(Page))" : "React.createElement(Page)"};
-const reactRoot = ${bodyHtml ? "ReactDOM.hydrateRoot(container, pageElement);" : "ReactDOM.createRoot(container);"}
-${bodyHtml ? "" : "reactRoot.render(pageElement);"}
+const reactRoot = ReactDOM.createRoot(container);
+reactRoot.render(pageElement);
 ${isPreview ? `
 // --- React Preview HMR ---
 (async function() {

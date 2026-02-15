@@ -121,7 +121,7 @@ describe("SSG static HTML extraction", () => {
     assert.ok(!html.includes("observablehq"), "should not contain cell content");
   });
 
-  it("build shell uses hydrateRoot when bodyHtml is provided", () => {
+  it("build shell uses createRoot even when bodyHtml is provided", () => {
     const html = generateReactPageShell({
       title: "Test",
       stylesheets: [],
@@ -130,8 +130,9 @@ describe("SSG static HTML extraction", () => {
       bodyHtml: "<h1>Hello</h1>",
       isPreview: false
     });
-    assert.ok(html.includes("hydrateRoot"), "should use hydrateRoot for SSG");
-    assert.ok(html.includes("<h1>Hello</h1>"), "should include static HTML in root");
+    assert.ok(html.includes("createRoot"), "should use createRoot (not hydrateRoot) for SSG");
+    assert.ok(!html.includes("hydrateRoot"), "should not use hydrateRoot");
+    assert.ok(html.includes("<h1>Hello</h1>"), "should include static HTML in root for fast first-paint");
   });
 
   it("build shell uses createRoot when no bodyHtml", () => {
@@ -397,22 +398,3 @@ describe("Enhanced SSR extraction", () => {
   });
 });
 
-// =============================================================================
-// HMR module fixes
-// =============================================================================
-
-describe("HMR module", () => {
-  it("onHmrEvent returns an unsubscribe function", async () => {
-    const {onHmrEvent} = await import("../src/react/hmr.js");
-    const unsub = onHmrEvent("test-event", () => {});
-    assert.strictEqual(typeof unsub, "function");
-    unsub(); // should not throw
-  });
-
-  it("useHmrFileChange returns an unsubscribe function", async () => {
-    const {useHmrFileChange} = await import("../src/react/hmr.js");
-    const unsub = useHmrFileChange(() => {});
-    assert.strictEqual(typeof unsub, "function");
-    unsub(); // should not throw
-  });
-});

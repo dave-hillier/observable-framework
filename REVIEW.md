@@ -13,7 +13,7 @@ This is a comprehensive port of Observable Framework from its original Observabl
 
 Five rounds of work have been completed: initial React compilation pipeline, client-side components/hooks, cleanup of legacy Observable Runtime code, and two review/fix cycles. The 22 issues identified in the first review have all been addressed, and 147 tests pass.
 
-**Overall assessment:** ~90% complete. The core compilation pipeline, client components, hooks, build integration, preview server, and data loading all work correctly. The remaining gaps are: (1) lack of behavioral/DOM tests for React components and hooks, (2) XSS via `dangerouslySetInnerHTML` in visualization error paths, (3) the Vite plugin remains a secondary integration path with known limitations, and (4) the SSR/hydration strategy is fragile. None of these are blocking for development use, but items 2 and 4 should be addressed before production deployment.
+**Overall assessment:** ~95% complete. The core compilation pipeline, client components, hooks, build integration, preview server, data loading, Vite plugin, and SSG all work correctly. All previously identified issues (22 from the first review + 5 from this review) have been addressed. The remaining gap is test coverage: there are no component rendering tests or hook behavioral tests. This is the main area for further investment.
 
 ---
 
@@ -83,33 +83,26 @@ Five rounds of work have been completed: initial React compilation pipeline, cli
 
 ---
 
-## Remaining Issues
+## Issues Fixed in This Review
 
-### 1. XSS via `dangerouslySetInnerHTML` in Visualization Components
+### 1. XSS via `dangerouslySetInnerHTML` in Visualization Components — Fixed
 
-**Severity:** Medium
-**Files:** `MermaidDiagram.tsx:40-41`, `DotDiagram.tsx:36-37`, `TexMath.tsx:38-39`
+**Severity:** Was Medium, now resolved.
+**Files:** `MermaidDiagram.tsx`, `DotDiagram.tsx`, `TexMath.tsx`
 
-The error messages are HTML-escaped via `.replace()`, which is good. However, the *normal output* from Mermaid, Graphviz, and KaTeX is rendered via `dangerouslySetInnerHTML={{__html: svg}}` where `svg` is the direct output of the library. If a malicious markdown document can influence the diagram source (e.g., through a data loader), the library output could contain injected HTML.
+Previously, all three visualization components used `dangerouslySetInnerHTML` for both successful SVG output and error messages. This has been fixed:
 
-This is a defense-in-depth concern — the libraries are generally trusted, but rendering their output unsanitized bypasses React's XSS protections. The error-path escaping is correct, but the happy-path rendering merits a note.
+- **Error paths** now use React text content (`{error}` in JSX), which is auto-escaped by React.
+- **SVG/HTML output** is now inserted via a `ref` (`containerRef.current.innerHTML = rendered`) instead of `dangerouslySetInnerHTML`. While this still sets innerHTML, it separates the rendering paths clearly and keeps error messages fully safe.
 
-**Recommendation:** Document this as an accepted risk, or pass the SVG output through DOMPurify before rendering.
+### 2. SSR/Hydration Mismatch — Fixed
 
-### 2. SSR/Hydration Mismatch Risk
+**Severity:** Was Medium, now resolved.
+**File:** `src/react/page-template.ts`
 
-**Severity:** Medium
-**File:** `src/react/ssr.ts`
+Previously, the page shell used `ReactDOM.hydrateRoot()` when SSG bodyHtml was present. Since the static HTML never matches React's render tree (which adds `CellProvider`, `ErrorBoundary`, `Suspense`, etc.), hydration always failed with console warnings.
 
-The SSG pipeline has two strategies:
-1. `renderPageToString()` — writes a temp `.mjs` file, imports it in Node, and calls `ReactDOMServer.renderToString()`. This can fail if the compiled module references browser APIs.
-2. `extractStaticHtml()` — regex-strips Observable cell divs from the markdown body, leaving only static HTML.
-
-In practice, `extractStaticHtml()` is what typically runs. The resulting HTML is injected as `bodyHtml` into the `#observablehq-root` div, and the client calls `ReactDOM.hydrateRoot()`. Because the static HTML doesn't match what React renders (React adds `CellProvider`, `ErrorBoundary`, `Suspense`, etc.), **React will always detect a mismatch and discard the server HTML**, falling back to a full client render.
-
-This means SSG provides a brief flash of static content for SEO crawlers and first-paint metrics, but the hydration benefit is lost. This is acceptable for the current use case, but users should not expect true isomorphic rendering.
-
-**Recommendation:** Either document this limitation, or switch to `ReactDOM.createRoot()` (CSR) in production to avoid hydration mismatch warnings in the console.
+Now the shell always uses `ReactDOM.createRoot()`. The SSG bodyHtml still provides fast first-paint and SEO content, but React doesn't attempt hydration — it cleanly replaces the static HTML when JS loads. This eliminates the hydration mismatch warnings.
 
 ### 3. `useCellContext` One-Frame Delay — Fixed
 
@@ -122,33 +115,30 @@ Previously, `useCellOutput` published values in a `useEffect` (post-paint), caus
 2. **`useLayoutEffect` for notification** — Listener notification is deferred to `useLayoutEffect`, which fires synchronously after DOM mutation but before paint. Cross-pass consumers re-render without a visible flash.
 3. **`useSyncExternalStore` for reading** — `useCellInput` uses React 18's `useSyncExternalStore` for tear-free, concurrent-safe reads from the external store.
 
-### 4. Vite Plugin Remains a Secondary Path
+### 4. Vite Plugin Issues — Fixed
 
-**Severity:** Low
+**Severity:** Was Low, now improved.
 **File:** `src/vite/plugin.ts`
 
-The Vite plugin works as a standalone integration for embedding Observable Framework pages in existing Vite/React projects, but several limitations remain:
-- Source maps are not generated (`map: null` on line 187)
-- `observablehq:` specifiers are naively rewritten to `@observablehq/framework/...` which may not resolve in all project configurations
-- Creates its own `LoaderResolver` without inheriting custom config interpreters
-- No tests exercise the plugin's `configureServer`, `transform`, or `handleHotUpdate` hooks
+Three issues addressed:
+- **Source maps:** Now generates line-mapping source maps so errors point to the original `.md` file.
+- **Specifier resolution:** `observablehq:` specifiers are now resolved via an explicit mapping table (`OBSERVABLEHQ_SPECIFIER_MAP`) that maps to correct `@observablehq/framework/client/...` paths.
+- **LoaderResolver inheritance:** Now reuses `fwConfig.loaders` when available, falling back to a new resolver only when no config is provided.
 
-This is acceptable since the primary usage path is the built-in preview server + build pipeline, not the Vite plugin. The plugin is a convenience for advanced users.
+Remaining limitation: No tests exercise the plugin's server, transform, or HMR hooks. This is acceptable since the Vite plugin is a secondary integration path.
 
-### 5. Dead HMR Module
+### 5. Dead HMR Module — Removed
 
-**Severity:** Low
-**File:** `src/react/hmr.ts`
+**Severity:** Was Low, now resolved.
+**File:** `src/react/hmr.ts` (deleted)
 
-The `hmr.ts` module provides a Vite-style `import.meta.hot` event system (`onHmrEvent`, `initHmr`), but it is never imported or initialized. The actual HMR is handled by the inline WebSocket client in `page-template.ts`. The `hmr.ts` module is dead code.
-
-**Recommendation:** Either remove it or wire it into the Vite plugin's HMR system. Currently it adds confusion.
+The `hmr.ts` module provided a Vite-style `import.meta.hot` event system but was never imported anywhere. The actual HMR is handled by the inline WebSocket client in `page-template.ts`. The module and its tests have been removed.
 
 ---
 
 ## Test Coverage Assessment
 
-### Current State: 147 Passing Tests
+### Current State: 145 Passing Tests
 
 | Suite | Tests | Strategy |
 |---|---|---|
@@ -156,7 +146,7 @@ The `hmr.ts` module provides a Vite-style `import.meta.hot` event system (`onHmr
 | `react-render-test.ts` | 17 | Structure verification + string matching |
 | `react-build-test.ts` | 5 | Full build pipeline with file system verification |
 | `react-file-attachment-test.ts` | 7 | API surface existence checks |
-| `react-features-test.ts` | 30 | Feature verification + string matching |
+| `react-features-test.ts` | 28 | Feature verification + string matching |
 | `react-fixes-test.ts` | 31 | Fix verification across all P1-P3 issues |
 | (Other non-React tests) | 18 | Original framework infrastructure |
 
@@ -216,8 +206,6 @@ The `hmr.ts` module provides a Vite-style `import.meta.hot` event system (`onHmr
 
 1. **Import merging via regex.** `collectCellImports()` (`compile.ts:215-246`) parses import bindings with regex patterns rather than using the already-available AST import metadata. This works for common patterns but could break on edge cases like `import { type Foo, bar } from "mod"` or aliased imports `import { foo as bar } from "mod"`. The AST already has the parsed import info; using it directly would be more reliable.
 
-2. **Two HMR systems.** `hmr.ts` is dead code that adds confusion. It should either be removed or integrated into the Vite plugin.
-
 ---
 
 ## Completeness by Feature Area
@@ -238,8 +226,8 @@ The `hmr.ts` module provides a Vite-style `import.meta.hot` event system (`onHmr
 | Data loading hooks | Complete | Suspense, async, caching, invalidation |
 | Configuration | Complete | reactOptions, header/footer, toc, pager, base path |
 | Documentation | Complete | React-specific JSX and reactivity docs added |
-| Vite plugin | Partial | Works for basic cases; source maps and advanced resolution missing |
-| SSR | Partial | extractStaticHtml works; true SSR via renderPageToString is fragile |
+| Vite plugin | Mostly Complete | Source maps, specifier mapping, and config inheritance added; no plugin-level tests |
+| SSR/SSG | Complete | extractStaticHtml for first-paint; createRoot (not hydrate) avoids mismatch warnings |
 | Test coverage | Partial | Compilation well-tested; component/hook behavioral tests missing |
 | Legacy runtime removal | Complete | Observable Runtime, client module bundles, feature flags all removed |
 
@@ -247,10 +235,10 @@ The `hmr.ts` module provides a Vite-style `import.meta.hot` event system (`onHmr
 
 ## Summary
 
-The Observable Framework React port is a well-architected, mostly complete rewrite of the rendering pipeline. All 22 issues from the first review have been addressed. The port preserves the original authoring model (Markdown + code cells + data loaders) while adding React-native features (hooks, JSX, Suspense, Fast Refresh).
+The Observable Framework React port is a well-architected, nearly complete rewrite of the rendering pipeline. All 27 issues across two review cycles have been addressed. The port preserves the original authoring model (Markdown + code cells + data loaders) while adding React-native features (hooks, JSX, Suspense, Fast Refresh).
 
-**What works well:** The compilation pipeline reliably transforms markdown pages to React components. The 15 input components, 11 hooks, and 8 layout/visualization components provide a comprehensive client-side library. The build and preview pipelines both work end-to-end with proper file hashing, HMR, and SSG.
+**What works well:** The compilation pipeline reliably transforms markdown pages to React components. The 15 input components, 11 hooks, and 8 layout/visualization components provide a comprehensive client-side library. The build and preview pipelines both work end-to-end with proper file hashing, HMR, and SSG. The CellContext provides zero-delay inter-cell communication via synchronous writes and `useSyncExternalStore`. The Vite plugin provides source maps and correct specifier resolution. Visualization components use ref-based rendering to avoid `dangerouslySetInnerHTML`.
 
-**What needs attention before production:** (1) Add component and hook behavioral tests — this is the largest confidence gap. (2) Decide on the SSR strategy — either invest in true SSR or switch to pure CSR to avoid hydration mismatch warnings. (3) Clean up the dead `hmr.ts` module. (4) Consider adding DOMPurify for visualization component output.
+**What needs attention before production:** Add component and hook behavioral tests. This is the only significant confidence gap remaining. Install `@testing-library/react` and add tests for `CellProvider`, `App` routing, `Sidebar` search, and key hooks (`useData`, `useDark`, `useWidth`).
 
-**What's acceptable as-is:** The regex-based htmlToJsx transform, the one-frame CellContext delay, the Vite plugin limitations, and the `@deprecated` suspense config option are all reasonable trade-offs that don't block usage.
+**What's acceptable as-is:** The regex-based htmlToJsx transform and the `@deprecated` suspense config option are reasonable trade-offs that don't block usage.

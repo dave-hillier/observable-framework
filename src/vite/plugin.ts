@@ -18,6 +18,25 @@ const VIRTUAL_CONFIG = "virtual:observable-config";
 const RESOLVED_VIRTUAL_PREFIX = "\0";
 
 /**
+ * Mapping from observablehq: specifiers to their actual module paths.
+ * These are the modules that the framework provides to page components.
+ */
+const OBSERVABLEHQ_SPECIFIER_MAP: Record<string, string> = {
+  "stdlib": "client/stdlib",
+  "stdlib/dot": "client/stdlib/dot",
+  "stdlib/duckdb": "client/stdlib/duckdb",
+  "stdlib/mermaid": "client/stdlib/mermaid",
+  "stdlib/sqlite": "client/stdlib/sqlite",
+  "stdlib/tex": "client/stdlib/tex",
+  "stdlib/vega-lite": "client/stdlib/vega-lite",
+  "stdlib/xlsx": "client/stdlib/xlsx",
+  "stdlib/zip": "client/stdlib/zip",
+  "react/hooks": "client/hooks",
+  "react/components": "client/components",
+  "search": "client/search"
+};
+
+/**
  * Options for the Observable Framework Vite plugin.
  */
 export interface ObservablePluginOptions {
@@ -56,13 +75,18 @@ export function observablePlugin(options: ObservablePluginOptions = {}): Plugin 
 
     configResolved(config) {
       viteRoot = config.root;
-      // Initialize the loader resolver
-      const rootDir = join(config.root, root);
-      loaders = new LoaderResolver({root: rootDir});
+      // Initialize the loader resolver using the config's loaders if available,
+      // otherwise create a new one for the source root directory.
+      if (fwConfig?.loaders) {
+        loaders = fwConfig.loaders;
+      } else {
+        const rootDir = join(config.root, root);
+        loaders = new LoaderResolver({root: rootDir});
+      }
     },
 
     /**
-     * Resolve virtual module IDs.
+     * Resolve virtual module IDs and observablehq: specifiers.
      */
     resolveId(id) {
       if (id === VIRTUAL_APP_ENTRY || id === VIRTUAL_ROUTES || id === VIRTUAL_CONFIG) {
@@ -112,7 +136,6 @@ root.render(React.createElement("div", null, "No config provided"));`;
           try {
             const loader = loaders.find(filePath);
             if (loader) {
-              // Loader.load() returns the output file path as a string
               const outputPath = await loader.load();
               const content = await readFile(outputPath);
               const contentType = mime.getType(filePath) ?? "application/octet-stream";
@@ -172,7 +195,14 @@ root.render(React.createElement("div", null, "No config provided"));`;
           resolveImport: (spec) => {
             // In dev mode, let Vite handle import resolution
             if (spec.startsWith("npm:")) return spec.slice(4);
-            if (spec.startsWith("observablehq:")) return `@observablehq/framework/${spec.slice(13)}`;
+            if (spec.startsWith("observablehq:")) {
+              // Map observablehq: specifiers to actual module paths
+              const subpath = spec.slice("observablehq:".length);
+              const mapped = OBSERVABLEHQ_SPECIFIER_MAP[subpath];
+              if (mapped) return `@observablehq/framework/${mapped}`;
+              // Fallback for unmapped specifiers
+              return `@observablehq/framework/${subpath}`;
+            }
             // Resolve relative imports from the page's directory
             if (spec.startsWith("./") || spec.startsWith("../")) return spec;
             // Absolute paths within the project
@@ -182,9 +212,22 @@ root.render(React.createElement("div", null, "No config provided"));`;
           resolveFile: (name) => `/_file/${name}`
         });
 
+        // Generate a simple line-mapping source map so errors point to the
+        // original .md file. This maps each output line to line 1 of the
+        // source so that at minimum the file name is correct in stack traces.
+        const lineCount = reactCode.split("\n").length;
+        const mappings = Array.from({length: lineCount}, () => "AAAA").join(";");
+        const sourceMap = {
+          version: 3,
+          sources: [id],
+          sourcesContent: [code],
+          names: [],
+          mappings
+        };
+
         return {
           code: reactCode,
-          map: null // TODO: source maps
+          map: sourceMap
         };
       } catch (err) {
         console.error(`Failed to compile ${id}:`, err);
