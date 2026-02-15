@@ -13,6 +13,8 @@ export interface TableOfContentsProps {
   selector?: string;
   /** CSS class name */
   className?: string;
+  /** Current page path — changes trigger a re-scan of headings */
+  path?: string;
 }
 
 const DEFAULT_SELECTOR = "h1:not(:first-of-type)[id], h2:first-child[id], :not(h1) + h2[id]";
@@ -24,12 +26,14 @@ const DEFAULT_SELECTOR = "h1:not(:first-of-type)[id], h2:first-child[id], :not(h
 export function TableOfContents({
   label = "Contents",
   selector = DEFAULT_SELECTOR,
-  className
+  className,
+  path
 }: TableOfContentsProps) {
   const [entries, setEntries] = useState<TocEntry[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Build TOC entries from headings in the main content
+  // Build TOC entries from headings in the main content.
+  // Re-scans when the selector or page path changes.
   useEffect(() => {
     const main = document.querySelector("#observablehq-main");
     if (!main) return;
@@ -44,7 +48,8 @@ export function TableOfContents({
       .filter((e) => e.text && e.id);
 
     setEntries(tocEntries);
-  }, [selector]);
+    setActiveId(null);
+  }, [selector, path]);
 
   // Scroll spy: track which heading is currently visible
   useEffect(() => {

@@ -92,7 +92,7 @@ export function PageLayout({
       )}
       <div id="observablehq-center">
         {header && <header id="observablehq-header">{header}</header>}
-        {tocConfig.show && <TableOfContents label={tocConfig.label} />}
+        {tocConfig.show && <TableOfContents label={tocConfig.label} path={path} />}
         <main
           id="observablehq-main"
           ref={mainRef}

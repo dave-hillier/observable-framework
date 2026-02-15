@@ -8,3 +8,6 @@ export {generateReactPageShell, generateAppEntryModule} from "./page-template.js
 // React rendering (page → HTML shell + compiled module)
 export {renderReactPage, renderReactPageModule, configToAppConfig, generateRouteDefinitions, generateRouteDefinitionsModule} from "./render.js";
 export type {ReactRenderOptions} from "./render.js";
+
+// SSR
+export {extractStaticHtml, renderPageToString} from "./ssr.js";

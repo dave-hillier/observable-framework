@@ -127,6 +127,10 @@ export async function renderReactPageModule(
  * expected by the App and Sidebar React components.
  */
 export function configToAppConfig(config: Config): AppConfig {
+  // Evaluate header/footer if they are functions or strings.
+  // Functions receive {title, path} context; strings are used directly.
+  const header = typeof config.header === "function" ? config.header({title: config.title}) : config.header;
+  const footer = typeof config.footer === "function" ? config.footer({title: config.title}) : config.footer;
   return {
     title: config.title,
     pages: configPagesToSidebarItems(config.pages),
@@ -134,7 +138,9 @@ export function configToAppConfig(config: Config): AppConfig {
     search: !!config.search,
     toc: config.toc,
     pager: config.pager,
-    base: config.base
+    base: config.base,
+    header: header ?? undefined,
+    footer: footer ?? undefined
   };
 }
 
