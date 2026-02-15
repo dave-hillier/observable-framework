@@ -195,7 +195,7 @@ export async function build(
     if (path.startsWith("/_observablehq/") && path.endsWith(".js")) {
       const cachePath = join(cacheRoot, path);
       effects.output.write(`${faint("bundle")} ${path} ${faint("→")} `);
-      const clientPath = getClientPath(path === "/_observablehq/client.js" ? "index.js" : path.slice("/_observablehq/".length)); // prettier-ignore
+      const clientPath = getClientPath(path.slice("/_observablehq/".length));
       const define: {[key: string]: string} = {};
       if (path === "/_observablehq/stdlib/duckdb.js") define["DUCKDB_MANIFEST"] = JSON.stringify(await getDuckDBManifest(duckdb, {root, aliases})); // prettier-ignore
       const contents = await rollupClient(clientPath, root, path, {minify: true, keepNames: true, define});

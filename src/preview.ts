@@ -124,9 +124,7 @@ export class PreviewServer {
     let pathname = decodeURI(url.pathname);
     try {
       let match: RegExpExecArray | null;
-      if (pathname === "/_observablehq/client.js") {
-        end(req, res, await rollupClient(getClientPath("preview.js"), root, pathname), "text/javascript");
-      } else if (pathname === "/_observablehq/minisearch.json") {
+      if (pathname === "/_observablehq/minisearch.json") {
         end(req, res, await searchIndex(config), "application/json");
       } else if ((match = /^\/_observablehq\/theme-(?<theme>[\w-]+(,[\w-]+)*)?\.css$/.exec(pathname))) {
         end(req, res, await bundleStyles({theme: match.groups!.theme?.split(",") ?? []}), "text/css");
