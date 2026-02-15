@@ -13,7 +13,9 @@ Framework runs like a spreadsheet: code re-runs automatically when referenced va
 
 Reactivity is especially helpful for data apps because these apps tend to have complex state. (See Observable’s founding essay, [_A Better Way to Code_](https://medium.com/@mbostock/a-better-way-to-code-2b1d2876a3a0).) For example, you might want to update a chart when a user interacts with a menu or composes a query. Or you might simply want to load several datasets in parallel. Reactivity means you don’t have to manage complex state changes — you can code declaratively as if state were static and immutable, letting the runtime manage state for you.
 
-Unlike reactive libraries, Framework’s reactivity is implemented at the language layer as part of the JavaScript runtime: there’s no new API or syntax to learn. It’s vanilla JavaScript, but the code runs automatically. Code blocks in Markdown run in topological order determined by top-level variable references (a.k.a. _dataflow_), rather than in top-down document order. For example, here we reference variables `x` and `y` even though they are defined in a code block farther down the page:
+<div class="tip">If you prefer React's model for managing state, you can use <a href="./jsx">React hooks</a> such as <code>useState</code> and <code>useEffect</code> directly in JSX code blocks. React components integrate naturally with Framework's reactivity — pass reactive values as props to keep your components in sync.</div>
+
+Unlike reactive libraries, Framework's reactivity is implemented at the language layer as part of the JavaScript runtime: there's no new API or syntax to learn. It's vanilla JavaScript, but the code runs automatically. Code blocks in Markdown run in topological order determined by top-level variable references (a.k.a. _dataflow_), rather than in top-down document order. For example, here we reference variables `x` and `y` even though they are defined in a code block farther down the page:
 
 ```js echo
 x + y
@@ -319,7 +321,7 @@ You can then display the input anywhere you like. And you can reference the inpu
 
 ## Mutables
 
-Normally, only the code block that declares a top-level variable can define it or assign to it. You can however use the `Mutable` function to declare a mutable generator, allowing other code to mutate the generator’s value. This is similar to React’s `useState` hook.
+Normally, only the code block that declares a top-level variable can define it or assign to it. You can however use the `Mutable` function to declare a mutable generator, allowing other code to mutate the generator's value. This is similar to React's [`useState`](https://react.dev/reference/react/useState) hook — and if you prefer, you can use `useState` directly in [React components](./jsx#hooks) instead.
 
 `Mutable` is available by default in Markdown but you can import it explicitly like so:
 

@@ -106,7 +106,7 @@ Most application frameworks focus on a single language, such as JavaScript, Pyth
 
 With Framework, editing a Python or R data loader immediately updates the browser preview; no reloading required. Framework’s preview server automatically watches for changes and re-runs the data loader, pushing updates over a socket. And thanks to reactivity, the browser can efficiently incrementally update the display.
 
-Whether your team prefers Python, R, SQL — or even some new language you invented — Framework can give you a best-in-class developer experience and help you build a better data app.
+Whether your team prefers Python, R, SQL — or even some new language you invented — Framework can give you a best-in-class developer experience and help you build a better data app. On the client, you can use vanilla JavaScript or React — whichever your team prefers.
 
 ## Static-site architecture
 
@@ -114,9 +114,13 @@ Performance is critical for dashboards: users don’t like to wait, and dashboar
 
 The speed of modern data warehouses is astonishing. But often time-consuming warehouse changes are needed for analysis — say adding some untapped data source or not-yet-materialized view. Framework’s data loaders let you shortcut this work and quickly produce a performant dashboard. Seeing is believing, and Framework lets you validate ideas faster.
 
+## First-class React support
+
+Framework has built-in support for [React](./jsx). You can build interactive interfaces using JSX and React hooks such as `useState`, `useEffect`, and `useRef` directly in your Markdown pages. Define React components, compose them with props, and combine them with Framework's built-in reactivity and data loading. Whether you prefer vanilla JavaScript or React, Framework treats both as first-class approaches to building data apps.
+
 ## Automatic reactivity
 
-Like Observable notebooks, Framework has language-level support for reactivity. Instead of wrangling hooks or signals, you can write declarative code in vanilla JavaScript that automatically re-runs whenever variables change, like a spreadsheet. This helps you build complex, interactive data apps that are easier to understand and maintain.
+Framework has language-level support for reactivity. You can write declarative code in vanilla JavaScript that automatically re-runs whenever variables change, like a spreadsheet. React components integrate naturally with this reactivity system — pass reactive values as props and your components update automatically. This helps you build complex, interactive data apps that are easier to understand and maintain.
 
 ## An end-to-end solution
 

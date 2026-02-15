@@ -63,17 +63,7 @@ export default {
 
 ### Importing exported modules
 
-An exported module can then be imported into a vanilla web application like so:
-
-```html run=false
-<script type="module">
-
-import {Chart} from "https://my-app.example.com/chart.js";
-
-document.body.append(await Chart());
-
-</script>
-```
+An exported module can then be imported into another application. Since Framework has first-class [React](./jsx) support, embedding into React applications is straightforward.
 
 <div class="tip">
 
@@ -81,7 +71,9 @@ You must [enable cross-origin resource sharing](https://enable-cors.org/) (CORS)
 
 </div>
 
-In React, you can do something similar using [dynamic import](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import) and [`useEffect`](https://react.dev/reference/react/useEffect) and [`useRef`](https://react.dev/reference/react/useRef) hooks (see this example live on [StackBlitz](https://stackblitz.com/edit/observable-framework-embed-react?file=src%2FApp.tsx)):
+#### Embedding in React
+
+Use [dynamic import](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import) with [`useEffect`](https://react.dev/reference/react/useEffect) and [`useRef`](https://react.dev/reference/react/useRef) hooks (see this example live on [StackBlitz](https://stackblitz.com/edit/observable-framework-embed-react?file=src%2FApp.tsx)):
 
 ```jsx run=false
 import {useEffect, useRef} from "react";
@@ -106,6 +98,20 @@ export function EmbedChart() {
 Some web tooling such as Vite and Webpack erroneously rewrite external dynamic imports. You may need to include a comment such as `import(/* @vite-ignore */ …)` or `import(/* webpackIgnore: true */ …)` to disable this behavior.
 
 </div>
+
+#### Embedding in vanilla JavaScript
+
+You can also import an exported module into a vanilla web application without React:
+
+```html run=false
+<script type="module">
+
+import {Chart} from "https://my-app.example.com/chart.js";
+
+document.body.append(await Chart());
+
+</script>
+```
 
 ## Exported files
 

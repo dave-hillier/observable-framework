@@ -1,6 +1,6 @@
-# JSX <a href="https://github.com/observablehq/framework/releases/tag/v1.9.0" class="observablehq-version-badge" data-version="^1.9.0" title="Added in 1.9.0"></a>
+# React
 
-[React](https://react.dev/) is a popular and powerful library for building interactive interfaces. React is typically written in [JSX](https://react.dev/learn/writing-markup-with-jsx), an extension of JavaScript that allows HTML-like markup. To use JSX and React, declare a JSX fenced code block (<code>\```jsx</code>). You can alternatively use a TSX fenced code block (<code>\```tsx</code>) if using JSX with [TypeScript](./javascript#type-script).
+[React](https://react.dev/) is a first-class way to build interactive interfaces in Framework. You can use React components, hooks, and JSX directly in your Markdown pages alongside Framework's built-in reactivity and data loading. React is typically written in [JSX](https://react.dev/learn/writing-markup-with-jsx), an extension of JavaScript that allows HTML-like markup. To use JSX and React, declare a JSX fenced code block (<code>\```jsx</code>). You can alternatively use a TSX fenced code block (<code>\```tsx</code>) if using JSX with [TypeScript](./javascript#type-script).
 
 For example, to define a `Greeting` component that accepts a `subject` prop:
 
@@ -30,7 +30,9 @@ display(<Greeting subject="JSX" />);
 display(<Greeting subject="JSX" />);
 ```
 
-You can combine React with Framework’s built-in [reactivity](./reactivity) by passing reactive values as props. Try changing the `name` below.
+## Combining React with reactivity
+
+You can combine React with Framework's built-in [reactivity](./reactivity) by passing reactive values as props. Try changing the `name` below.
 
 ```jsx echo
 display(<Greeting subject={name || "anonymous"} />);
@@ -40,7 +42,9 @@ display(<Greeting subject={name || "anonymous"} />);
 const name = view(Inputs.text({label: "Name", placeholder: "Anonymous"}));
 ```
 
-You can use hooks such as [`useState`](https://react.dev/reference/react/useState), [`useEffect`](https://react.dev/reference/react/useEffect), and [`useRef`](https://react.dev/reference/react/useRef). The `Counter` component below counts the number of times you click the button.
+## Hooks
+
+React hooks are fully supported. You can use [`useState`](https://react.dev/reference/react/useState), [`useEffect`](https://react.dev/reference/react/useEffect), [`useRef`](https://react.dev/reference/react/useRef), and all other React hooks. The `Counter` component below counts the number of times you click the button.
 
 ```jsx echo
 function Counter() {
@@ -75,7 +79,9 @@ React DOM is also available as `ReactDOM` in Markdown, or can be imported as:
 import * as ReactDOM from "npm:react-dom";
 ```
 
-You can define components in JSX modules. For example, if this were `components/Card.jsx`:
+## Importing components
+
+You can define reusable components in JSX modules and import them across pages. For example, if this were `components/Card.jsx`:
 
 ```jsx run=false
 export function Card({title, children} = {}) {
@@ -109,9 +115,9 @@ display(<Card title="A test of cards">If you can read this, success!</Card>);
 Within a JSX fenced code block, the [display function](./javascript#explicit-display) behaves a bit differently from a JavaScript fenced code block or inline expression:
 it replaces the previously-displayed content, if any. In addition, JSX fenced code blocks do not support implicit display; content can only be displayed explicitly.
 
-<div class="note">
+<div class="tip">
 
-In the future we intend to support other JSX-compatible frameworks, such as Preact. We are also working on server-side rendering with client-side hydration; please upvote [#931](https://github.com/observablehq/framework/issues/931) if you are interested in this feature.
+Framework's React support extends throughout the stack — the client-side runtime itself is built on React components and hooks. This means React is not just supported but is a core part of the architecture. We are also working on server-side rendering with client-side hydration; please upvote [#931](https://github.com/observablehq/framework/issues/931) if you are interested in this feature.
 
 </div>
 
