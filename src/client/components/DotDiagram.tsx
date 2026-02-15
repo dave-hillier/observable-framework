@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 
 export interface DotDiagramProps {
   /** Graphviz DOT source code */
@@ -11,6 +11,9 @@ export interface DotDiagramProps {
  * React wrapper for Graphviz DOT diagrams.
  * Lazily loads @viz-js/viz and renders the DOT graph.
  *
+ * SVG output is inserted via a ref to avoid dangerouslySetInnerHTML.
+ * Errors are rendered as safe React text content.
+ *
  * Usage:
  *   <DotDiagram source={`
  *     digraph {
@@ -19,7 +22,8 @@ export interface DotDiagramProps {
  *   `} />
  */
 export function DotDiagram({source, className}: DotDiagramProps) {
-  const [svg, setSvg] = useState<string>("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,12 +34,15 @@ export function DotDiagram({source, className}: DotDiagramProps) {
         const viz = await instance();
         if (cancelled) return;
         const rendered = viz.renderString(source.trim(), {format: "svg"});
-        if (!cancelled) setSvg(rendered);
+        if (!cancelled && containerRef.current) {
+          setError(null);
+          containerRef.current.innerHTML = rendered;
+        }
       } catch (err) {
         if (!cancelled) {
           console.error("Graphviz rendering error:", err);
-          const escaped = String(err).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          setSvg(`<pre class="observablehq--error">${escaped}</pre>`);
+          setError(String(err));
+          if (containerRef.current) containerRef.current.innerHTML = "";
         }
       }
     })();
@@ -45,10 +52,18 @@ export function DotDiagram({source, className}: DotDiagramProps) {
     };
   }, [source]);
 
+  if (error) {
+    return (
+      <div className={`observablehq-dot ${className ?? ""}`}>
+        <pre className="observablehq--error">{error}</pre>
+      </div>
+    );
+  }
+
   return (
     <div
+      ref={containerRef}
       className={`observablehq-dot ${className ?? ""}`}
-      dangerouslySetInnerHTML={{__html: svg}}
     />
   );
 }
