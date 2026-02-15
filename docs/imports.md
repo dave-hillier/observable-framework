@@ -211,10 +211,9 @@ Module preloading does not apply to [dynamic imports](#dynamic-imports) and [`im
 
 ## Observable imports
 
-Framework includes a few built-in libraries implemented by Framework itself that can be imported via the `observablehq:` protocol. This currently includes:
+Framework includes a built-in standard library that can be imported via the `observablehq:` protocol:
 
-* `observablehq:runtime` - the [Observable Runtime](https://github.com/observablehq/runtime)
-* `observablehq:stdlib` - [Framework’s standard library](https://github.com/observablehq/framework/blob/main/src/client/stdlib.js)
+* `observablehq:stdlib` - [Framework's standard library](https://github.com/observablehq/framework/blob/main/src/client/stdlib)
 
 ## Implicit imports
 
