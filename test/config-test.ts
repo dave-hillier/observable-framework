@@ -66,7 +66,7 @@ describe("readConfig(undefined, root)", () => {
       search: null,
       watchPath: resolve("test/input/build/config/observablehq.config.js"),
       duckdb: DUCKDB_DEFAULTS,
-      react: false
+      reactOptions: {strict: false, suspense: true}
     });
   });
   it("returns the default config if no config file is found", async () => {
@@ -96,7 +96,7 @@ describe("readConfig(undefined, root)", () => {
       search: null,
       watchPath: undefined,
       duckdb: DUCKDB_DEFAULTS,
-      react: false
+      reactOptions: {strict: false, suspense: true}
     });
   });
 });

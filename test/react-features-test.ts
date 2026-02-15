@@ -299,35 +299,19 @@ describe("FileInput component", () => {
 
 describe("React config options", () => {
   it("defaults reactOptions to strict=false, suspense=true", () => {
-    const config = normalizeConfig({react: true, root: "docs"});
-    assert.strictEqual(config.react, true);
-    assert.strictEqual(config.reactOptions.strict, false);
-    assert.strictEqual(config.reactOptions.suspense, true);
-  });
-
-  it("accepts react as boolean true (backward compatible)", () => {
-    const config = normalizeConfig({react: true, root: "docs"});
-    assert.strictEqual(config.react, true);
-    assert.strictEqual(config.reactOptions.strict, false);
-  });
-
-  it("accepts react as boolean false", () => {
-    const config = normalizeConfig({react: false, root: "docs"});
-    assert.strictEqual(config.react, false);
+    const config = normalizeConfig({root: "docs"});
     assert.strictEqual(config.reactOptions.strict, false);
     assert.strictEqual(config.reactOptions.suspense, true);
   });
 
   it("accepts react as an object with strict and suspense", () => {
     const config = normalizeConfig({react: {strict: true, suspense: false}, root: "docs"});
-    assert.strictEqual(config.react, true);
     assert.strictEqual(config.reactOptions.strict, true);
     assert.strictEqual(config.reactOptions.suspense, false);
   });
 
   it("defaults missing fields in react object", () => {
     const config = normalizeConfig({react: {strict: true}, root: "docs"});
-    assert.strictEqual(config.react, true);
     assert.strictEqual(config.reactOptions.strict, true);
     assert.strictEqual(config.reactOptions.suspense, true);
   });

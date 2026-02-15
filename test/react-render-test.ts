@@ -270,22 +270,6 @@ describe("Phase 4.2: generateRouteDefinitionsModule", () => {
 });
 
 // =============================================================================
-// Config react flag
-// =============================================================================
-
-describe("Config: react flag", () => {
-  it("defaults react to false", () => {
-    const config = normalizeConfig({root: "docs"});
-    assert.strictEqual(config.react, false);
-  });
-
-  it("sets react to true when specified", () => {
-    const config = normalizeConfig({root: "docs", react: true});
-    assert.strictEqual(config.react, true);
-  });
-});
-
-// =============================================================================
 // Phase 7.2: Custom head content in React shell
 // =============================================================================
 

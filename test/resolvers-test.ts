@@ -11,7 +11,7 @@ function getOptions({path, ...config}: ConfigSpec & {path: string}): Config & {p
 
 describe("getResolvers(page, {root, path})", () => {
   mockJsDelivr();
-  const builtins = ["observablehq:runtime", "observablehq:stdlib", "observablehq:client"];
+  const builtins: string[] = [];
   it("resolves directly-attached files", async () => {
     const options = getOptions({root: "test/input", path: "attached.md"});
     const page = parseMarkdown("${FileAttachment('foo.csv')}", options);

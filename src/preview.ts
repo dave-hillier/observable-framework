@@ -6,9 +6,6 @@ import {createServer} from "node:http";
 import type {IncomingMessage, RequestListener, Server, ServerResponse} from "node:http";
 import {basename, dirname, join, normalize} from "node:path/posix";
 import {difference} from "d3-array";
-import type {PatchItem} from "fast-array-diff";
-import {getPatch} from "fast-array-diff";
-import deepEqual from "fast-deep-equal";
 import mime from "mime";
 import openBrowser from "open";
 import send from "send";
@@ -20,20 +17,18 @@ import {getDuckDBManifest} from "./duckdb.js";
 import {enoent, isEnoent, isHttpError, isSystemError} from "./error.js";
 import {getClientPath} from "./files.js";
 import type {FileWatchers} from "./fileWatchers.js";
-import {isComment, isElement, isText, parseHtml, rewriteHtml} from "./html.js";
 import type {FileInfo} from "./javascript/module.js";
 import {findModule, readJavaScript} from "./javascript/module.js";
-import {transpileJavaScript, transpileModule} from "./javascript/transpile.js";
+import {transpileModule} from "./javascript/transpile.js";
 import type {LoaderResolver} from "./loader.js";
-import type {MarkdownCode, MarkdownPage} from "./markdown.js";
+import type {MarkdownPage} from "./markdown.js";
 import {populateNpmCache} from "./npm.js";
 import {isPathImport, resolvePath} from "./path.js";
 import {renderReactPage, renderReactPageModule} from "./react/render.js";
-import {renderModule, renderPage} from "./render.js";
+import {renderModule} from "./render.js";
 import type {Resolvers} from "./resolvers.js";
 import {getResolvers} from "./resolvers.js";
 import {bundleStyles, rollupClient} from "./rollup.js";
-import type {Params} from "./route.js";
 import {route} from "./route.js";
 import {searchIndex} from "./search.js";
 import {Telemetry} from "./telemetry.js";
@@ -129,9 +124,7 @@ export class PreviewServer {
     let pathname = decodeURI(url.pathname);
     try {
       let match: RegExpExecArray | null;
-      if (pathname === "/_observablehq/client.js") {
-        end(req, res, await rollupClient(getClientPath("preview.js"), root, pathname), "text/javascript");
-      } else if (pathname === "/_observablehq/minisearch.json") {
+      if (pathname === "/_observablehq/minisearch.json") {
         end(req, res, await searchIndex(config), "application/json");
       } else if ((match = /^\/_observablehq\/theme-(?<theme>[\w-]+(,[\w-]+)*)?\.css$/.exec(pathname))) {
         end(req, res, await bundleStyles({theme: match.groups!.theme?.split(",") ?? []}), "text/css");
@@ -224,13 +217,8 @@ export class PreviewServer {
         // Anything else should 404; static files should be matched above.
         const options = {...config, path: pathname, preview: true};
         const parse = await loaders.loadPage(pathname, options);
-        if (config.react) {
-          // React mode: serve the React HTML shell with a compiled page module
-          const {html: reactHtml} = await renderReactPage(parse, options);
-          end(req, res, reactHtml, "text/html");
-        } else {
-          end(req, res, await renderPage(parse, options), "text/html");
-        }
+        const {html: reactHtml} = await renderReactPage(parse, options);
+        end(req, res, reactHtml, "text/html");
       }
     } catch (error) {
       if (isEnoent(error)) {
@@ -250,13 +238,8 @@ export class PreviewServer {
         try {
           const options = {...config, path: "/404", preview: true};
           const parse = await loaders.loadPage("/404", options);
-          if (config.react) {
-            const {html: reactHtml} = await renderReactPage(parse, options);
-            end(req, res, reactHtml, "text/html");
-          } else {
-            const html = await renderPage(parse, options);
-            end(req, res, html, "text/html");
-          }
+          const {html: reactHtml} = await renderReactPage(parse, options);
+          end(req, res, reactHtml, "text/html");
           return;
         } catch {
           // ignore secondary error (e.g., no 404.md); show the original 404
@@ -320,19 +303,13 @@ function getWatchFiles(resolvers: Resolvers): Iterable<string> {
   return files;
 }
 
-interface HtmlPart {
-  type: number;
-  value: string;
-}
-
 function handleWatch(socket: WebSocket, req: IncomingMessage, configPromise: Promise<Config>) {
   let config: Config | null = null;
   let path: string | null = null;
   let hash: string | null = null;
-  let html: HtmlPart[] | null = null;
+  let html: string | null = null;
   let code: Map<string, string> | null = null;
   let files: Map<string, string> | null = null;
-  let tables: Map<string, string> | null = null;
   let stylesheets: string[] | null = null;
   let configWatcher: FSWatcher | null = null;
   let loaderWatcher: FSWatcher | null = null;
@@ -383,57 +360,28 @@ function handleWatch(socket: WebSocket, req: IncomingMessage, configPromise: Pro
         const resolvers = await getResolvers(page, {path, ...config});
         if (hash === resolvers.hash) break;
 
-        // In React mode, send targeted updates instead of a full page reload.
-        // Detect whether only file attachments changed or the page content also changed.
-        if (config.react) {
-          const previousHash = hash!;
-          const previousFiles = files!;
-          const previousStylesheets = stylesheets!;
-          hash = resolvers.hash;
-          const newFiles = getFiles(resolvers);
-          const newStylesheets = Array.from(resolvers.stylesheets, resolvers.resolveStylesheet);
-          const filePatch = diffFiles(previousFiles, newFiles, getInfoResolver(loaders, path));
-          const stylesheetPatch = diffStylesheets(previousStylesheets, newStylesheets);
-          // Detect whether page content (body, code) changed or only files/stylesheets
-          const newHtml = getHtml(page, resolvers);
-          const newCode = getCode(page, resolvers);
-          const htmlChanged = JSON.stringify(newHtml) !== JSON.stringify(html);
-          const codeChanged = JSON.stringify(Array.from(newCode)) !== JSON.stringify(Array.from(code ?? new Map()));
-          html = newHtml;
-          code = newCode;
-          files = newFiles;
-          stylesheets = newStylesheets;
-          send({
-            type: "react-update",
-            pageChanged: htmlChanged || codeChanged,
-            files: filePatch,
-            stylesheets: stylesheetPatch,
-            hash: {previous: previousHash, current: hash}
-          });
-          attachmentWatcher?.close();
-          attachmentWatcher = await loaders.watchFiles(path, getWatchFiles(resolvers), () => watcher("change"));
-          break;
-        }
-
         const previousHash = hash!;
-        const previousHtml = html!;
-        const previousCode = code!;
         const previousFiles = files!;
-        const previousTables = tables!;
         const previousStylesheets = stylesheets!;
         hash = resolvers.hash;
-        html = getHtml(page, resolvers);
-        code = getCode(page, resolvers);
-        files = getFiles(resolvers);
-        tables = getTables(page);
-        stylesheets = Array.from(resolvers.stylesheets, resolvers.resolveStylesheet);
+        const newFiles = getFiles(resolvers);
+        const newStylesheets = Array.from(resolvers.stylesheets, resolvers.resolveStylesheet);
+        const filePatch = diffFiles(previousFiles, newFiles, getInfoResolver(loaders, path));
+        const stylesheetPatch = diffStylesheets(previousStylesheets, newStylesheets);
+        // Detect whether page content (body, code) changed or only files/stylesheets
+        const newHtml = getHtml(page);
+        const newCode = getCode(page);
+        const htmlChanged = JSON.stringify(newHtml) !== JSON.stringify(html);
+        const codeChanged = JSON.stringify(Array.from(newCode)) !== JSON.stringify(Array.from(code ?? new Map()));
+        html = newHtml;
+        code = newCode;
+        files = newFiles;
+        stylesheets = newStylesheets;
         send({
-          type: "update",
-          html: diffHtml(previousHtml, html),
-          code: diffCode(previousCode, code),
-          files: diffFiles(previousFiles, files, getInfoResolver(loaders, path)),
-          tables: diffTables(previousTables, tables, previousFiles, files),
-          stylesheets: diffStylesheets(previousStylesheets, stylesheets),
+          type: "react-update",
+          pageChanged: htmlChanged || codeChanged,
+          files: filePatch,
+          stylesheets: stylesheetPatch,
           hash: {previous: previousHash, current: hash}
         });
         attachmentWatcher?.close();
@@ -456,10 +404,9 @@ function handleWatch(socket: WebSocket, req: IncomingMessage, configPromise: Pro
     if (resolvers.hash === initialHash) send({type: "welcome"});
     else return void send({type: "reload"});
     hash = resolvers.hash;
-    html = getHtml(page, resolvers);
-    code = getCode(page, resolvers);
+    html = getHtml(page);
+    code = getCode(page);
     files = getFiles(resolvers);
-    tables = getTables(page);
     stylesheets = Array.from(resolvers.stylesheets, resolvers.resolveStylesheet);
     attachmentWatcher = await loaders.watchFiles(path, getWatchFiles(resolvers), () => watcher("change"));
     loaderWatcher = loaders.watchPage(path, (event) => watcher(event));
@@ -508,59 +455,18 @@ function handleWatch(socket: WebSocket, req: IncomingMessage, configPromise: Pro
   }
 }
 
-function serializeHtml(node: ChildNode): HtmlPart | undefined {
-  return isElement(node)
-    ? {type: 1, value: node.outerHTML}
-    : isText(node)
-    ? {type: 3, value: node.nodeValue!}
-    : isComment(node)
-    ? {type: 8, value: node.data}
-    : undefined;
+// For React HMR change detection: serialize page HTML for comparison.
+function getHtml({body}: MarkdownPage): string {
+  return body;
 }
 
-function getHtml({body}: MarkdownPage, resolvers: Resolvers): HtmlPart[] {
-  const {document} = parseHtml(`\n${rewriteHtml(body, resolvers)}`);
-  return Array.from(document.body.childNodes, serializeHtml).filter((d): d is HtmlPart => d != null);
-}
-
-function getCode({code, params}: MarkdownPage, resolvers: Resolvers): Map<string, string> {
-  return new Map(code.map((code) => [code.id, transpileCode(code, resolvers, params)]));
-}
-
-// Including the file has as a comment ensures that the code changes when a
-// directly-referenced file changes, triggering re-evaluation. Note that when a
-// transitive import changes, or when a file referenced by a transitive import
-// changes, the sha is already included in the transpiled code, and hence will
-// likewise be re-evaluated.
-function transpileCode({id, node, mode}: MarkdownCode, resolvers: Resolvers, params?: Params): string {
-  const hash = createHash("sha256");
-  for (const f of node.files) hash.update(resolvers.resolveFile(f.name));
-  return `${transpileJavaScript(node, {id, mode, params, ...resolvers})} // ${hash.digest("hex")}`;
+// For React HMR change detection: hash code blocks for comparison.
+function getCode({code}: MarkdownPage): Map<string, string> {
+  return new Map(code.map((c) => [c.id, c.node.input]));
 }
 
 function getFiles({files, resolveFile}: Resolvers): Map<string, string> {
   return new Map(Array.from(files, (f) => [f, resolveFile(f)]));
-}
-
-function getTables({data}: MarkdownPage): Map<string, string> {
-  return new Map(Object.entries(data.sql ?? {}));
-}
-
-type CodePatch = {removed: string[]; added: string[]};
-
-function diffCode(oldCode: Map<string, string>, newCode: Map<string, string>): CodePatch {
-  const patch: CodePatch = {removed: [], added: []};
-  for (const [id, body] of oldCode) {
-    if (newCode.get(id) !== body) {
-      patch.removed.push(id);
-    }
-  }
-  for (const [id, body] of newCode) {
-    if (oldCode.get(id) !== body) {
-      patch.added.push(body);
-    }
-  }
-  return patch;
 }
 
 type FileDeclaration = {name: string; mimeType: string; lastModified: number; size: number; path: string};
@@ -594,46 +500,6 @@ function diffFiles(
 
 function getInfoResolver(loaders: LoaderResolver, path: string): (name: string) => FileInfo | undefined {
   return (name) => loaders.getSourceInfo(resolvePath(path, name));
-}
-
-type TableDeclaration = {name: string; path: string};
-type TablePatch = {removed: string[]; added: TableDeclaration[]};
-
-function diffTables(
-  oldTables: Map<string, string>,
-  newTables: Map<string, string>,
-  oldFiles: Map<string, string>,
-  newFiles: Map<string, string>
-): TablePatch {
-  const patch: TablePatch = {removed: [], added: []};
-  for (const [name, path] of oldTables) {
-    if (newTables.get(name) !== path) {
-      patch.removed.push(name);
-    }
-  }
-  for (const [name, path] of newTables) {
-    if (oldTables.get(name) !== path) {
-      patch.added.push({name, path});
-    } else if (newFiles.get(path) !== oldFiles.get(path)) {
-      patch.removed.push(name);
-      patch.added.push({name, path});
-    }
-  }
-  return patch;
-}
-
-function diffHtml(oldHtml: HtmlPart[], newHtml: HtmlPart[]): RedactedPatch<HtmlPart> {
-  return getPatch(oldHtml, newHtml, deepEqual).map(redactPatch);
-}
-
-type RedactedPatch<T> = RedactedPatchItem<T>[];
-
-type RedactedPatchItem<T> =
-  | {type: "add"; oldPos: number; newPos: number; items: T[]}
-  | {type: "remove"; oldPos: number; newPos: number; items: {length: number}};
-
-function redactPatch<T>(patch: PatchItem<T>): RedactedPatchItem<T> {
-  return patch.type === "remove" ? {...patch, type: "remove", items: {length: patch.items.length}} : patch;
 }
 
 type StylesheetPatch = {removed: string[]; added: string[]};

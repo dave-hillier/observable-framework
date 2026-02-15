@@ -7,10 +7,10 @@ import {isParameterized} from "../src/route.js";
 
 describe("getClientPath(entry)", () => {
   it("returns the relative path to the specified source", () => {
-    assert.strictEqual(getClientPath("main.js"), "test/build/src/client/main.js");
-    assert.strictEqual(getClientPath("./main.js"), "test/build/src/client/main.js");
-    assert.strictEqual(getClientPath("stdlib/resize.js"), "test/build/src/client/stdlib/resize.js");
-    assert.strictEqual(getClientPath("./stdlib/resize.js"), "test/build/src/client/stdlib/resize.js");
+    assert.strictEqual(getClientPath("stdlib/duckdb.js"), "test/build/src/client/stdlib/duckdb.js");
+    assert.strictEqual(getClientPath("./stdlib/duckdb.js"), "test/build/src/client/stdlib/duckdb.js");
+    assert.strictEqual(getClientPath("stdlib/dot.js"), "test/build/src/client/stdlib/dot.js");
+    assert.strictEqual(getClientPath("./stdlib/dot.js"), "test/build/src/client/stdlib/dot.js");
   });
 });
 

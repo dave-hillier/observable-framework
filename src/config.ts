@@ -117,7 +117,6 @@ export interface Config {
   loaders: LoaderResolver;
   watchPath?: string;
   duckdb: DuckDBConfig;
-  react: boolean; // defaults to false; enables React rendering mode
   reactOptions: ReactOptions; // React-specific configuration
 }
 
@@ -154,7 +153,7 @@ export interface ConfigSpec {
   preserveExtension?: unknown;
   markdownIt?: unknown;
   duckdb?: unknown;
-  react?: unknown;
+  react?: unknown; // used for reactOptions (strict, suspense)
 }
 
 interface ScriptSpec {
@@ -291,7 +290,6 @@ export function normalizeConfig(spec: ConfigSpec = {}, defaultRoot?: string, wat
   const interpreters = normalizeInterpreters(spec.interpreters as any);
   const normalizePath = getPathNormalizer(spec);
   const duckdb = normalizeDuckDB(spec.duckdb);
-  const react = spec.react === undefined ? false : spec.react !== false && spec.react != null ? true : false;
   const reactOptions = normalizeReactOptions(spec.react);
 
   // If this path ends with a slash, then add an implicit /index to the
@@ -345,7 +343,6 @@ export function normalizeConfig(spec: ConfigSpec = {}, defaultRoot?: string, wat
     loaders: new LoaderResolver({root, interpreters}),
     watchPath,
     duckdb,
-    react,
     reactOptions
   };
   if (pages === undefined) Object.defineProperty(config, "pages", {get: () => readPages(root, md)});

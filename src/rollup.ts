@@ -23,16 +23,8 @@ const STYLE_MODULES = {
 
 // These libraries are currently bundled in to a wrapper.
 const BUNDLED_MODULES = [
-  "@observablehq/inputs", // observablehq:stdlib/inputs.js
-  "@observablehq/inspector", // observablehq:runtime.js
-  "@observablehq/runtime", // observablehq:runtime.js
-  "isoformat", // observablehq:runtime.js
   "minisearch" // observablehq:search.js
 ];
-
-function rewriteInputsNamespace(code: string) {
-  return code.replace(/\b__ns__\b/g, "inputs-3a86ea");
-}
 
 export async function bundleStyles({
   minify = false,
@@ -50,9 +42,7 @@ export async function bundleStyles({
     minify,
     alias: STYLE_MODULES
   });
-  let text = result.outputFiles[0].text;
-  if (path === getClientPath("stdlib/inputs.css")) text = rewriteInputsNamespace(text);
-  return text;
+  return result.outputFiles[0].text;
 }
 
 type ImportResolver = (specifier: string) => Promise<string | undefined> | string | undefined;
