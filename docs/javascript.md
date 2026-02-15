@@ -4,9 +4,11 @@ Use JavaScript to render charts, inputs, and other dynamic, interactive, and gra
 
 <div class="tip">JavaScript runs on load, and re-runs <a href="./reactivity">reactively</a> when variables change.</div>
 
+<div class="tip">Prefer React? Framework has first-class support for <a href="./jsx">React and JSX</a>. You can use JSX fenced code blocks (<code>```jsx</code>) alongside JavaScript code blocks, with full support for React hooks and components.</div>
+
 ## Fenced code blocks
 
-JavaScript fenced code blocks (<code>```js</code>) are typically used to display content such as charts and inputs. They can also be used to declare top-level variables, say to load data or declare helper functions.
+JavaScript fenced code blocks (<code>```js</code>) are typically used to display content such as charts and inputs. They can also be used to declare top-level variables, say to load data or declare helper functions. For React components and JSX, use JSX fenced code blocks (<code>```jsx</code>) instead; see [React](./jsx).
 
 JavaScript blocks come in two forms: *expression* blocks and *program* blocks. An expression block looks like this (and note the lack of semicolon):
 

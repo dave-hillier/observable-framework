@@ -218,7 +218,7 @@ Framework includes a few built-in libraries implemented by Framework itself that
 
 ## Implicit imports
 
-For convenience, Framework provides recommended libraries by default in Markdown. These implicit imports are only evaluated if you reference the corresponding symbol and hence don’t add overhead if you don’t use them; for example, D3 won’t be loaded unless you reference `d3`.
+For convenience, Framework provides recommended libraries by default in Markdown, including [React and ReactDOM](./jsx). These implicit imports are only evaluated if you reference the corresponding symbol and hence don't add overhead if you don't use them; for example, D3 won't be loaded unless you reference `d3`.
 
 Click on any of the imported symbols below to learn more.
 
