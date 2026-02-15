@@ -1,4 +1,4 @@
-import {createContext, useContext, useEffect, useMemo, useReducer} from "react";
+import {createContext, useCallback, useContext, useLayoutEffect, useMemo, useSyncExternalStore} from "react";
 import type {ReactNode} from "react";
 import {createElement} from "react";
 
@@ -24,22 +24,41 @@ type CellListener = (name: string, value: unknown) => void;
 interface CellStore {
   /** Current cell values */
   values: CellValues;
-  /** Set a cell value */
+  /** Write a value to the store without notifying listeners. Safe to call during render. */
+  write(name: string, value: unknown): void;
+  /** Notify listeners of a value change. Must be called outside render (e.g., in useLayoutEffect). */
+  notify(name: string, value: unknown): void;
+  /** Write + notify in one call (for use outside render). */
   set(name: string, value: unknown): void;
   /** Subscribe to changes for a specific cell */
   subscribe(listener: CellListener): () => void;
+  /** Monotonic version counter, incremented on every write. Used by useSyncExternalStore. */
+  version: number;
 }
 
 function createCellStore(): CellStore {
   const values: CellValues = new Map();
   const listeners = new Set<CellListener>();
 
-  return {
+  const store: CellStore = {
     values,
+    version: 0,
+    write(name: string, value: unknown) {
+      const prev = values.get(name);
+      if (Object.is(prev, value)) return;
+      values.set(name, value);
+      store.version++;
+    },
+    notify(name: string, value: unknown) {
+      for (const listener of listeners) {
+        listener(name, value);
+      }
+    },
     set(name: string, value: unknown) {
       const prev = values.get(name);
       if (Object.is(prev, value)) return;
       values.set(name, value);
+      store.version++;
       for (const listener of listeners) {
         listener(name, value);
       }
@@ -49,6 +68,8 @@ function createCellStore(): CellStore {
       return () => listeners.delete(listener);
     }
   };
+
+  return store;
 }
 
 const CellStoreContext = createContext<CellStore | null>(null);
@@ -78,6 +99,11 @@ export function CellProvider({children}: {children: ReactNode}) {
  * Hook for a cell to publish a named output value.
  * When the value changes, all cells consuming this name will re-render.
  *
+ * Values are written to the store synchronously during render so that
+ * cells rendered later in the same pass can read them immediately (no
+ * one-frame delay). Listener notifications are deferred to useLayoutEffect
+ * so they fire before paint, eliminating visible flashes.
+ *
  * This replaces Observable's implicit variable declaration:
  *   const data = [...];  // Observable: declares "data" in the module scope
  *
@@ -86,15 +112,24 @@ export function CellProvider({children}: {children: ReactNode}) {
  */
 export function useCellOutput(name: string, value: unknown): void {
   const store = useCellStore();
-  // Update synchronously during render to ensure consistency
-  useEffect(() => {
-    store.set(name, value);
+  // Write synchronously during render so same-pass consumers see the value.
+  // This is safe because we only mutate the external Map — no React state
+  // updates or listener notifications happen here.
+  store.write(name, value);
+  // Notify subscribers in useLayoutEffect (before paint) so cross-pass
+  // consumers re-render without a visible flash.
+  useLayoutEffect(() => {
+    store.notify(name, value);
   }, [store, name, value]);
 }
 
 /**
  * Hook for a cell to consume a named input value.
  * Re-renders whenever the named value changes.
+ *
+ * Uses useSyncExternalStore for tear-free, concurrent-safe reads.
+ * The store's version counter ensures React detects changes even
+ * when the same name is updated multiple times between renders.
  *
  * This replaces Observable's implicit variable reference:
  *   display(data.length);  // Observable: references "data" from another cell
@@ -105,15 +140,21 @@ export function useCellOutput(name: string, value: unknown): void {
  */
 export function useCellInput<T = unknown>(name: string): T | undefined {
   const store = useCellStore();
-  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
 
-  useEffect(() => {
-    return store.subscribe((changedName) => {
-      if (changedName === name) forceUpdate();
-    });
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      return store.subscribe((changedName) => {
+        if (changedName === name) onStoreChange();
+      });
+    },
+    [store, name]
+  );
+
+  const getSnapshot = useCallback(() => {
+    return store.values.get(name) as T | undefined;
   }, [store, name]);
 
-  return store.values.get(name) as T | undefined;
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 /**

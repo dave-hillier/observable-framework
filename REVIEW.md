@@ -111,16 +111,16 @@ This means SSG provides a brief flash of static content for SEO crawlers and fir
 
 **Recommendation:** Either document this limitation, or switch to `ReactDOM.createRoot()` (CSR) in production to avoid hydration mismatch warnings in the console.
 
-### 3. `useCellContext` One-Frame Delay
+### 3. `useCellContext` One-Frame Delay — Fixed
 
-**Severity:** Low
-**File:** `src/client/hooks/useCellContext.ts:90-92`
+**Severity:** Was Low, now resolved.
+**File:** `src/client/hooks/useCellContext.ts`
 
-`useCellOutput` publishes values in a `useEffect`, meaning they aren't available until after the first render commits. Downstream cells reading via `useCellInput` will see `undefined` for one frame. In Observable Runtime, cells resolve synchronously in dependency order.
+Previously, `useCellOutput` published values in a `useEffect` (post-paint), causing a one-frame delay. This has been fixed with a three-part strategy:
 
-This is inherent to React's rendering model and is unlikely to cause visible issues for most pages (the `undefined` frame is typically not painted). However, it can cause a brief flash for cells that display upstream values directly.
-
-**Recommendation:** Accept as a known limitation of the React model. Could potentially be mitigated with `useLayoutEffect` (synchronous after DOM mutation, before paint) at the cost of blocking the paint.
+1. **Synchronous write during render** — `useCellOutput` calls `store.write()` (Map mutation only, no listener notification) during render, so cells rendered later in the same pass see the value immediately.
+2. **`useLayoutEffect` for notification** — Listener notification is deferred to `useLayoutEffect`, which fires synchronously after DOM mutation but before paint. Cross-pass consumers re-render without a visible flash.
+3. **`useSyncExternalStore` for reading** — `useCellInput` uses React 18's `useSyncExternalStore` for tear-free, concurrent-safe reads from the external store.
 
 ### 4. Vite Plugin Remains a Secondary Path
 
