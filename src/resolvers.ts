@@ -42,26 +42,14 @@ export interface ResolversConfig {
   globalStylesheets?: string[];
   loaders: LoaderResolver;
   duckdb: DuckDBConfig;
-  react?: boolean;
 }
 
-const defaultImports = [
-  "observablehq:client", // Framework client
-  "observablehq:runtime", // Runtime
-  "observablehq:stdlib" // Standard library
-];
-
 export const builtins = new Map<string, string>([
-  ["@observablehq/runtime", "/_observablehq/runtime.js"],
-  ["@observablehq/stdlib", "/_observablehq/stdlib.js"],
-  ["npm:@observablehq/runtime", "/_observablehq/runtime.js"],
-  ["npm:@observablehq/stdlib", "/_observablehq/stdlib.js"],
-  ["npm:@observablehq/dot", "/_observablehq/stdlib/dot.js"], // TODO publish to npm
-  ["npm:@observablehq/duckdb", "/_observablehq/stdlib/duckdb.js"], // TODO publish to npm
-  ["npm:@observablehq/inputs", "/_observablehq/stdlib/inputs.js"], // TODO publish to npm
-  ["npm:@observablehq/mermaid", "/_observablehq/stdlib/mermaid.js"], // TODO publish to npm
-  ["npm:@observablehq/tex", "/_observablehq/stdlib/tex.js"], // TODO publish to npm
-  ["npm:@observablehq/sqlite", "/_observablehq/stdlib/sqlite.js"], // TODO publish to npm
+  ["npm:@observablehq/dot", "/_observablehq/stdlib/dot.js"],
+  ["npm:@observablehq/duckdb", "/_observablehq/stdlib/duckdb.js"],
+  ["npm:@observablehq/mermaid", "/_observablehq/stdlib/mermaid.js"],
+  ["npm:@observablehq/tex", "/_observablehq/stdlib/tex.js"],
+  ["npm:@observablehq/sqlite", "/_observablehq/stdlib/sqlite.js"],
   // React framework builtins: compiled page modules import from these specifiers
   ["@observablehq/framework/react/hooks", "/_observablehq/framework-react.js"],
   ["@observablehq/framework/react/components", "/_observablehq/framework-react.js"]
@@ -93,7 +81,7 @@ export const builtins = new Map<string, string>([
  * them to any files referenced by static HTML.
  */
 export async function getResolvers(page: MarkdownPage, config: ResolversConfig): Promise<Resolvers> {
-  const {path, globalStylesheets: defaultStylesheets, loaders, react} = config;
+  const {path, globalStylesheets: defaultStylesheets, loaders} = config;
   const hash = createHash("sha256").update(page.body).update(JSON.stringify(page.data));
   const assets = new Set<string>();
   const files = new Set<string>();
@@ -101,8 +89,8 @@ export async function getResolvers(page: MarkdownPage, config: ResolversConfig):
   const anchors = new Set<string>();
   const localLinks = new Set<string>();
   const localImports = new Set<string>();
-  const globalImports = new Set<string>(react ? [] : defaultImports);
-  const staticImports = new Set<string>(react ? [] : defaultImports);
+  const globalImports = new Set<string>();
+  const staticImports = new Set<string>();
   const stylesheets = new Set<string>(defaultStylesheets);
 
   // Add assets.

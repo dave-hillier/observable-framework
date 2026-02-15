@@ -60,7 +60,6 @@ export function getImplicitInputImports(inputs: Iterable<string>): Set<string> {
 export function getImplicitStylesheets(imports: Iterable<string>): Set<string> {
   const set = setof(imports);
   const implicits = new Set<string>();
-  if (set.has("npm:@observablehq/inputs")) implicits.add("observablehq:stdlib/inputs.css");
   if (set.has("npm:katex")) implicits.add("npm:katex/dist/katex.min.css");
   if (set.has("npm:leaflet")) implicits.add("npm:leaflet/dist/leaflet.css");
   if (set.has("npm:mapbox-gl")) implicits.add("npm:mapbox-gl/dist/mapbox-gl.css");
@@ -173,7 +172,7 @@ export function getImplicitDependencies(imports: Iterable<string>): Set<string> 
   const implicits = new Set<string>();
   if (set.has("npm:@observablehq/dot")) implicits.add("npm:@viz-js/viz");
   if (set.has("npm:@observablehq/duckdb")) implicits.add("npm:@duckdb/duckdb-wasm");
-  if (set.has("npm:@observablehq/inputs")) implicits.add("npm:htl").add("npm:isoformat");
+  if (set.has("npm:@observablehq/inputs")) implicits.add("npm:htl");
   if (set.has("npm:@observablehq/mermaid")) implicits.add("npm:mermaid");
   if (set.has("npm:@observablehq/sqlite")) implicits.add("npm:sql.js");
   if (set.has("npm:@observablehq/tex")) implicits.add("npm:katex");

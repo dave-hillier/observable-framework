@@ -13,7 +13,7 @@ import type {Logger, Writer} from "./logger.js";
 import type {MarkdownPage} from "./markdown.js";
 import {populateNpmCache, resolveNpmImport, rewriteNpmImports} from "./npm.js";
 import {isAssetPath, isPathImport, relativePath, resolvePath, within} from "./path.js";
-import {renderModule, renderPage} from "./render.js";
+import {renderModule} from "./render.js";
 import type {FileRegistration} from "./react/index.js";
 import {compileMarkdownToReact, generateReactPageShell} from "./react/index.js";
 import {configToAppConfig, generateRouteDefinitions} from "./react/render.js";
@@ -94,7 +94,7 @@ export async function build(
   const addToManifest = (type: string, file: string, {title, path}: {title?: string | null; path: string}) => {
     buildManifest[type].push({
       path: config.normalizePath(file),
-      source: join("/", path), // TODO have route return path with leading slash?
+      source: join("/", path),
       ...(title != null && {title})
     });
   };
@@ -146,13 +146,11 @@ export async function build(
     ++pageCount;
   }
 
-  // In React mode, add React client bootstrap modules to globalImports
+  // Add React client bootstrap modules to globalImports
   // so they get bundled and hashed like the Observable client modules.
-  if (config.react) {
-    globalImports.add("/_observablehq/react-bootstrap.js");
-    globalImports.add("/_observablehq/react-dom-bootstrap.js");
-    globalImports.add("/_observablehq/framework-react.js");
-  }
+  globalImports.add("/_observablehq/react-bootstrap.js");
+  globalImports.add("/_observablehq/react-dom-bootstrap.js");
+  globalImports.add("/_observablehq/framework-react.js");
 
   // Check that there's at least one output.
   const outputCount = pageCount + assetCount;
@@ -374,10 +372,9 @@ export async function build(
     });
   }
 
-  // Render pages!
-  if (config.react) {
-    // React mode: compile each page to a JS module, then write shell HTML
-    // for every page path so static hosting works with direct URL access.
+  // Render pages: compile each page to a React component module, then write
+  // shell HTML for every page path so static hosting works with direct URL access.
+  {
     const reactPageModules = new Map<string, string>(); // path → hashed alias
 
     // Step 1: Compile each page to a React component module.
@@ -470,21 +467,6 @@ export async function build(
         strict: config.reactOptions?.strict
       });
       await effects.writeFile(`${path}.html`, shell);
-    }
-  } else {
-    // Standard Observable mode: render each page as self-contained HTML.
-    for (const [path, output] of outputs) {
-      effects.output.write(`${faint("render")} ${path} ${faint("→")} `);
-      if (output.type === "page") {
-        const {page, resolvers} = output;
-        const html = await renderPage(page, {...config, path, resolvers});
-        await effects.writeFile(`${path}.html`, html);
-        addToManifest("pages", path, page);
-      } else {
-        const {resolvers} = output;
-        const source = await renderModule(root, path, resolvers);
-        await effects.writeFile(path, source);
-      }
     }
   }
 
