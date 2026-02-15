@@ -1,6 +1,6 @@
 # Scrollytelling with IntersectionObserver
 
-This example demonstrates how to implement scrollytelling in Observable Framework using `IntersectionObserver` and `position: sticky`.
+This example demonstrates how to implement scrollytelling in Observable Framework using React, `IntersectionObserver`, and `position: sticky`. React's `useRef` provides references to DOM elements, `useState` tracks the active step, and `useEffect` manages the observer lifecycle with automatic cleanup.
 
 <style>
 
@@ -54,25 +54,64 @@ This example demonstrates how to implement scrollytelling in Observable Framewor
 
 </style>
 
-<section class="scroll-container">
-  <div class="scroll-info"></div>
-  <div class="scroll-section" data-step="1">STEP 1</div>
-  <div class="scroll-section" data-step="2">STEP 2</div>
-  <div class="scroll-section" data-step="3">STEP 3</div>
-  <div class="scroll-section" data-step="4">STEP 4</div>
-</section>
+```jsx echo
+function Scrollytelling({steps = 4}) {
+  const [activeStep, setActiveStep] = React.useState(0);
+  const sectionRefs = React.useRef([]);
 
-The structure of the HTML is:
+  React.useEffect(() => {
+    const targets = sectionRefs.current.filter(Boolean);
+    if (targets.length === 0) return;
 
-```html run=false
-<section class="scroll-container">
-  <div class="scroll-info"></div>
-  <div class="scroll-section" data-step="1">STEP 1</div>
-  <div class="scroll-section" data-step="2">STEP 2</div>
-  <div class="scroll-section" data-step="3">STEP 3</div>
-  <div class="scroll-section" data-step="4">STEP 4</div>
-</section>
+    const observer = new IntersectionObserver(
+      () => {
+        for (const target of [...targets].reverse()) {
+          const rect = target.getBoundingClientRect();
+          if (rect.top < innerHeight / 2) {
+            setActiveStep(Number(target.dataset.step));
+            return;
+          }
+        }
+        setActiveStep(0);
+      },
+      {rootMargin: "-50% 0% -50% 0%"}
+    );
+
+    for (const target of targets) observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+
+  const stepNumbers = Array.from({length: steps}, (_, i) => i + 1);
+
+  return (
+    <section className="scroll-container">
+      <div className={`scroll-info${activeStep ? ` scroll-info--step-${activeStep}` : ""}`}>
+        {activeStep}
+      </div>
+      {stepNumbers.map((step) => (
+        <div
+          key={step}
+          ref={(el) => (sectionRefs.current[step - 1] = el)}
+          className="scroll-section"
+          data-step={step}
+        >
+          STEP {step}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+display(<Scrollytelling />);
 ```
+
+The `Scrollytelling` component manages everything declaratively:
+
+- **`useState`** tracks which step is active, driving the CSS class and displayed number.
+- **`useRef`** stores references to each scroll section DOM element, replacing `document.querySelectorAll`.
+- **`useEffect`** sets up the `IntersectionObserver` and returns a cleanup function that calls `observer.disconnect()` — replacing the old `invalidation.then(() => observer.disconnect())` pattern.
+
+The component renders the scroll sections dynamically from the `steps` prop, and the `ref` callback on each section stores the DOM element for the observer.
 
 The CSS is:
 
@@ -124,30 +163,4 @@ The CSS is:
   padding: 1rem;
   box-sizing: border-box;
 }
-```
-
-Lastly, here’s the JavaScript that updates the background:
-
-```js echo
-const info = document.querySelector(".scroll-info");
-const targets = document.querySelectorAll(".scroll-section");
-
-const observer = new IntersectionObserver((entries) => {
-  for (const target of Array.from(targets).reverse()) {
-    const rect = target.getBoundingClientRect();
-    if (rect.top < innerHeight / 2) {
-      info.textContent = target.dataset.step;
-      info.className = `scroll-info scroll-info--step-${target.dataset.step}`;
-      return;
-    }
-  }
-  info.className = "scroll-info";
-  info.textContent = "0";
-}, {
-  rootMargin: "-50% 0% -50% 0%"
-});
-
-for (const target of targets) observer.observe(target);
-
-invalidation.then(() => observer.disconnect());
 ```
