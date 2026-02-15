@@ -34,7 +34,8 @@ export function DotDiagram({source, className}: DotDiagramProps) {
       } catch (err) {
         if (!cancelled) {
           console.error("Graphviz rendering error:", err);
-          setSvg(`<pre class="observablehq--error">${String(err)}</pre>`);
+          const escaped = String(err).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          setSvg(`<pre class="observablehq--error">${escaped}</pre>`);
         }
       }
     })();

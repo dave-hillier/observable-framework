@@ -23,6 +23,10 @@ export function useGenerator<T>(factory: () => AsyncGenerator<T, void, unknown>,
   const factoryRef = useRef(factory);
   factoryRef.current = factory;
 
+  // The generator is created once on mount and cleaned up on unmount.
+  // The factory ref is updated silently on each render, but the generator
+  // is NOT restarted — callers who need restart semantics should use a
+  // key prop on the component instead.
   useEffect(() => {
     let cancelled = false;
     const gen = factoryRef.current();
@@ -42,7 +46,7 @@ export function useGenerator<T>(factory: () => AsyncGenerator<T, void, unknown>,
       cancelled = true;
       gen.return(undefined as never);
     };
-  }, [factory]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return value;
 }

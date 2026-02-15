@@ -4,8 +4,8 @@ import {useEffect, useState} from "react";
  * Returns the current timestamp, updating at the specified interval.
  * Replaces Observable's `now` generator.
  *
- * @param interval - Update interval in milliseconds. Defaults to ~60fps (16ms).
- *                   Use larger values (e.g. 1000) for second-precision clocks.
+ * @param interval - Update interval in milliseconds. Defaults to 1000ms (1 second).
+ *                   Use smaller values (e.g. 16) for ~60fps animation clocks.
  */
 export function useNow(interval: number = 1000): number {
   const [now, setNow] = useState(Date.now);

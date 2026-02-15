@@ -36,7 +36,8 @@ export function TexMath({source, display = false, className}: TexMathProps) {
       } catch (err) {
         if (!cancelled) {
           console.error("KaTeX rendering error:", err);
-          setHtml(`<span class="observablehq--error">${String(err)}</span>`);
+          const escaped = String(err).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          setHtml(`<span class="observablehq--error">${escaped}</span>`);
         }
       }
     })();

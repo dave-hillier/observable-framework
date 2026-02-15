@@ -1,5 +1,6 @@
 import {readFile} from "node:fs/promises";
 import {join, relative} from "node:path";
+import mime from "mime";
 import type {Plugin} from "vite";
 import type {Config} from "../config.js";
 import {LoaderResolver} from "../loader.js";
@@ -46,6 +47,7 @@ export function observablePlugin(options: ObservablePluginOptions = {}): Plugin 
   const {root = "src"} = options;
   let loaders: LoaderResolver;
   let fwConfig: Config | undefined = options.config;
+  let viteRoot: string;
   const md = createMarkdownIt();
 
   return {
@@ -53,6 +55,7 @@ export function observablePlugin(options: ObservablePluginOptions = {}): Plugin 
     enforce: "pre",
 
     configResolved(config) {
+      viteRoot = config.root;
       // Initialize the loader resolver
       const rootDir = join(config.root, root);
       loaders = new LoaderResolver({root: rootDir});
@@ -105,15 +108,16 @@ root.render(React.createElement("div", null, "No config provided"));`;
 
         // Handle /_file/ requests (data loader outputs)
         if (req.url.startsWith("/_file/")) {
-          const filePath = req.url.slice("/_file/".length).split("?")[0];
+          const filePath = decodeURIComponent(req.url.slice("/_file/".length).split("?")[0]);
           try {
             const loader = loaders.find(filePath);
             if (loader) {
               // Loader.load() returns the output file path as a string
               const outputPath = await loader.load();
               const content = await readFile(outputPath);
+              const contentType = mime.getType(filePath) ?? "application/octet-stream";
               res.writeHead(200, {
-                "Content-Type": "application/octet-stream",
+                "Content-Type": contentType,
                 "Cache-Control": "no-cache"
               });
               res.end(content);
@@ -151,7 +155,7 @@ root.render(React.createElement("div", null, "No config provided"));`;
       if (!id.endsWith(".md")) return;
 
       // Only transform files within the source root
-      const rootDir = join(process.cwd(), root);
+      const rootDir = join(viteRoot, root);
       const relPath = relative(rootDir, id);
       if (relPath.startsWith("..")) return;
 
@@ -169,6 +173,10 @@ root.render(React.createElement("div", null, "No config provided"));`;
             // In dev mode, let Vite handle import resolution
             if (spec.startsWith("npm:")) return spec.slice(4);
             if (spec.startsWith("observablehq:")) return `@observablehq/framework/${spec.slice(13)}`;
+            // Resolve relative imports from the page's directory
+            if (spec.startsWith("./") || spec.startsWith("../")) return spec;
+            // Absolute paths within the project
+            if (spec.startsWith("/")) return spec;
             return spec;
           },
           resolveFile: (name) => `/_file/${name}`

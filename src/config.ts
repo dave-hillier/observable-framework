@@ -122,7 +122,8 @@ export interface Config {
 
 export interface ReactOptions {
   strict: boolean; // defaults to false; enables React.StrictMode
-  suspense: boolean; // defaults to true; enables Suspense for data loading
+  /** @deprecated Currently unused — cells are always wrapped in Suspense. */
+  suspense: boolean; // defaults to true; placeholder for future use
 }
 
 export interface ConfigSpec {
