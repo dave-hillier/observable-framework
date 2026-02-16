@@ -78,5 +78,16 @@ export type {SearchResult} from "./hooks/useSearch.js";
 export {useSuspenseData, invalidateData, invalidateAllData, useAsyncData, useData} from "./hooks/useData.js";
 
 // File attachment hooks & file format classes
-export {registerFile, onFileChange, getFileMetadata, useFileAttachment, useFileData, FileAttachment, SQLiteDatabaseClient, Workbook, ZipArchive, ZipArchiveEntry} from "./hooks/useFileAttachment.js";
+export {
+  registerFile,
+  onFileChange,
+  getFileMetadata,
+  useFileAttachment,
+  useFileData,
+  FileAttachment,
+  SQLiteDatabaseClient,
+  Workbook,
+  ZipArchive,
+  ZipArchiveEntry
+} from "./hooks/useFileAttachment.js";
 export type {FileMetadata, FileAttachmentHandle} from "./hooks/useFileAttachment.js";

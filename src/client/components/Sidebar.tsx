@@ -69,7 +69,11 @@ export function Sidebar({
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         searchInputRef.current?.focus();
-      } else if (e.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+      } else if (
+        e.key === "/" &&
+        document.activeElement?.tagName !== "INPUT" &&
+        document.activeElement?.tagName !== "TEXTAREA"
+      ) {
         e.preventDefault();
         searchInputRef.current?.focus();
       }
@@ -104,10 +108,7 @@ export function Sidebar({
   };
 
   const isSectionActive = (section: SidebarSection) => {
-    return (
-      section.pages.some((p) => isActive(p.path)) ||
-      (section.path != null && isActive(section.path))
-    );
+    return section.pages.some((p) => isActive(p.path)) || (section.path != null && isActive(section.path));
   };
 
   return (
@@ -120,7 +121,10 @@ export function Sidebar({
         onChange={(e) => setOpen(e.target.checked)}
       />
       <label id="observablehq-sidebar-backdrop" htmlFor="observablehq-sidebar-toggle" />
-      <nav id="observablehq-sidebar" className={`${className ?? ""}${hasResults ? " observablehq-search-results" : ""}`}>
+      <nav
+        id="observablehq-sidebar"
+        className={`${className ?? ""}${hasResults ? " observablehq-search-results" : ""}`}
+      >
         <ol>
           <label id="observablehq-sidebar-close" htmlFor="observablehq-sidebar-toggle" />
           <li className={`observablehq-link${isActive("/") ? " observablehq-link-active" : ""}`}>
@@ -198,12 +202,7 @@ export function Sidebar({
                   )}
                   <ol>
                     {item.pages.map((page, j) => (
-                      <SidebarLink
-                        key={j}
-                        page={page}
-                        active={isActive(page.path)}
-                        onClick={handleClick}
-                      />
+                      <SidebarLink key={j} page={page} active={isActive(page.path)} onClick={handleClick} />
                     ))}
                   </ol>
                 </SectionTag>

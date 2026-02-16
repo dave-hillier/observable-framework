@@ -62,10 +62,5 @@ export function MermaidDiagram({source, className}: MermaidDiagramProps) {
     );
   }
 
-  return (
-    <div
-      ref={containerRef}
-      className={`observablehq-mermaid ${className ?? ""}`}
-    />
-  );
+  return <div ref={containerRef} className={`observablehq-mermaid ${className ?? ""}`} />;
 }

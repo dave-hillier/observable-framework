@@ -28,16 +28,7 @@ function toDateString(d: Date | string): string {
  * A date picker input component.
  * Replaces Observable's `Inputs.date({label, min, max, value})`.
  */
-export function DateInput({
-  value,
-  onChange,
-  label,
-  min,
-  max,
-  required,
-  disabled = false,
-  className
-}: DateInputProps) {
+export function DateInput({value, onChange, label, min, max, required, disabled = false, className}: DateInputProps) {
   const id = useId();
 
   const handleChange = useCallback(

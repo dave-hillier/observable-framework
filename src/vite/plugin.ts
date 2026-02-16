@@ -6,8 +6,8 @@ import type {Config} from "../config.js";
 import {LoaderResolver} from "../loader.js";
 import {createMarkdownIt, parseMarkdown} from "../markdown.js";
 import {compileMarkdownToReact} from "../react/compile.js";
-import {configToAppConfig, generateRouteDefinitionsModule} from "../react/render.js";
 import {generateAppEntryModule} from "../react/page-template.js";
+import {configToAppConfig, generateRouteDefinitionsModule} from "../react/render.js";
 
 /**
  * Virtual module IDs used by the plugin.
@@ -22,7 +22,7 @@ const RESOLVED_VIRTUAL_PREFIX = "\0";
  * These are the modules that the framework provides to page components.
  */
 const OBSERVABLEHQ_SPECIFIER_MAP: Record<string, string> = {
-  "stdlib": "client/stdlib",
+  stdlib: "client/stdlib",
   "stdlib/dot": "client/stdlib/dot",
   "stdlib/duckdb": "client/stdlib/duckdb",
   "stdlib/mermaid": "client/stdlib/mermaid",
@@ -33,7 +33,7 @@ const OBSERVABLEHQ_SPECIFIER_MAP: Record<string, string> = {
   "stdlib/zip": "client/stdlib/zip",
   "react/hooks": "client/hooks",
   "react/components": "client/components",
-  "search": "client/search"
+  search: "client/search"
 };
 
 /**
@@ -65,7 +65,7 @@ export interface ObservablePluginOptions {
 export function observablePlugin(options: ObservablePluginOptions = {}): Plugin {
   const {root = "src"} = options;
   let loaders: LoaderResolver;
-  let fwConfig: Config | undefined = options.config;
+  const fwConfig: Config | undefined = options.config;
   let viteRoot: string;
   const md = createMarkdownIt();
 
@@ -99,13 +99,13 @@ export function observablePlugin(options: ObservablePluginOptions = {}): Plugin 
      */
     load(id) {
       if (id === RESOLVED_VIRTUAL_PREFIX + VIRTUAL_CONFIG) {
-        if (!fwConfig) return `export const config = {};`;
+        if (!fwConfig) return "export const config = {};";
         const appConfig = configToAppConfig(fwConfig);
         return `export const config = ${JSON.stringify(appConfig)};`;
       }
 
       if (id === RESOLVED_VIRTUAL_PREFIX + VIRTUAL_ROUTES) {
-        if (!fwConfig) return `export const routes = [];`;
+        if (!fwConfig) return "export const routes = [];";
         return generateRouteDefinitionsModule(fwConfig, {
           moduleBasePath: `./${root}`
         });

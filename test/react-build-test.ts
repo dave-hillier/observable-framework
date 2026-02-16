@@ -11,11 +11,6 @@ import {mockDuckDB} from "./mocks/duckdb.js";
 import {mockJsDelivr} from "./mocks/jsdelivr.js";
 import {mockJsr} from "./mocks/jsr.js";
 
-const silentEffects = {
-  logger: {log() {}, warn() {}, error() {}},
-  output: {write() {}}
-};
-
 describe("React build", () => {
   before(() => setCurrentDate(new Date("2024-01-10T16:00:00")));
   after(() => setCurrentDate(null));
@@ -26,7 +21,7 @@ describe("React build", () => {
   it("should produce React page modules instead of Observable HTML", async () => {
     const tmpPrefix = join(os.tmpdir(), "framework-react-build-");
     const inputDir = await mkdtemp(tmpPrefix + "input-");
-    await writeFile(join(inputDir, "index.md"), "# React Home\n\n```js\ndisplay(\"Hello\");\n```");
+    await writeFile(join(inputDir, "index.md"), '# React Home\n\n```js\ndisplay("Hello");\n```');
 
     const outputDir = await mkdtemp(tmpPrefix + "output-");
     const cacheDir = await mkdtemp(tmpPrefix + "cache-");
@@ -54,7 +49,10 @@ describe("React build", () => {
 
     // Find the page module (hashed filename)
     const pageFiles = [...findFiles(reactPagesDir)];
-    assert.ok(pageFiles.some((f) => f.startsWith("index.") && f.endsWith(".js")), "should have hashed index page module");
+    assert.ok(
+      pageFiles.some((f) => f.startsWith("index.") && f.endsWith(".js")),
+      "should have hashed index page module"
+    );
 
     // Read the page module and verify it's a React component
     const pageModuleFile = pageFiles.find((f) => f.startsWith("index.") && f.endsWith(".js"))!;
@@ -115,9 +113,18 @@ describe("React build", () => {
     if (existsSync(observablehqDir)) {
       const allFiles = [...findFiles(observablehqDir)];
       // Should have React bootstrap files but NOT Observable client/runtime/stdlib
-      assert.ok(allFiles.some((f) => f.includes("react-bootstrap")), "should have react-bootstrap");
-      assert.ok(allFiles.some((f) => f.includes("react-dom-bootstrap")), "should have react-dom-bootstrap");
-      assert.ok(allFiles.some((f) => f.includes("framework-react")), "should have framework-react");
+      assert.ok(
+        allFiles.some((f) => f.includes("react-bootstrap")),
+        "should have react-bootstrap"
+      );
+      assert.ok(
+        allFiles.some((f) => f.includes("react-dom-bootstrap")),
+        "should have react-dom-bootstrap"
+      );
+      assert.ok(
+        allFiles.some((f) => f.includes("framework-react")),
+        "should have framework-react"
+      );
 
       // Should NOT have the standard Observable client bundle
       // (client.js is the Observable client, not React client)

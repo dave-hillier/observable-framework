@@ -60,10 +60,5 @@ export function DotDiagram({source, className}: DotDiagramProps) {
     );
   }
 
-  return (
-    <div
-      ref={containerRef}
-      className={`observablehq-dot ${className ?? ""}`}
-    />
-  );
+  return <div ref={containerRef} className={`observablehq-dot ${className ?? ""}`} />;
 }

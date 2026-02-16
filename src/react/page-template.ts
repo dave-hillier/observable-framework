@@ -25,7 +25,18 @@ export function generateReactPageShell(options: {
   head?: string; // Custom head content from config/page (analytics, fonts, etc.)
   strict?: boolean; // Enable React.StrictMode wrapper
 }): string {
-  const {title, siteTitle, stylesheets, modulePreloads, pageModulePath, bodyHtml, base = "/", isPreview, head, strict = false} = options;
+  const {
+    title,
+    siteTitle,
+    stylesheets,
+    modulePreloads,
+    pageModulePath,
+    bodyHtml,
+    base = "/",
+    isPreview,
+    head,
+    strict = false
+  } = options;
   const reactBootstrap = options.reactBootstrapPath ?? `${base}_observablehq/react-bootstrap.js`;
   const reactDomBootstrap = options.reactDomBootstrapPath ?? `${base}_observablehq/react-dom-bootstrap.js`;
   const frameworkReact = options.frameworkReactPath ?? `${base}_observablehq/framework-react.js`;
@@ -51,10 +62,14 @@ import {App} from "${escapeJs(frameworkReact)}";
 import Page from "${escapeJs(pageModulePath)}";
 
 const container = document.getElementById("observablehq-root");
-const pageElement = ${strict ? "React.createElement(React.StrictMode, null, React.createElement(Page))" : "React.createElement(Page)"};
+const pageElement = ${
+    strict ? "React.createElement(React.StrictMode, null, React.createElement(Page))" : "React.createElement(Page)"
+  };
 const reactRoot = ReactDOM.createRoot(container);
 reactRoot.render(pageElement);
-${isPreview ? `
+${
+  isPreview
+    ? `
 // --- React Preview HMR ---
 (async function() {
   const {registerFile} = await import("${escapeJs(frameworkReact)}");
@@ -115,7 +130,11 @@ ${isPreview ? `
             try {
               const mod = await import(pageModuleUrl + "?t=" + Date.now());
               const NewPage = mod.default;
-              if (NewPage) reactRoot.render(${strict ? "React.createElement(React.StrictMode, null, React.createElement(NewPage))" : "React.createElement(NewPage)"});
+              if (NewPage) reactRoot.render(${
+                strict
+                  ? "React.createElement(React.StrictMode, null, React.createElement(NewPage))"
+                  : "React.createElement(NewPage)"
+              });
             } catch (e) {
               console.error("HMR page reload failed:", e);
               location.reload();
@@ -132,7 +151,9 @@ ${isPreview ? `
   }
   connect();
 })();
-` : ""}
+`
+    : ""
+}
 </script>
 </body>
 </html>`;
@@ -142,44 +163,52 @@ ${isPreview ? `
  * Generates a Vite entry point module that sets up the React app
  * with routing for all pages.
  */
-export function generateAppEntryModule(config: Config, routes: Array<{path: string; modulePath: string; title?: string}>): string {
+export function generateAppEntryModule(
+  config: Config,
+  routes: Array<{path: string; modulePath: string; title?: string}>
+): string {
   const lines: string[] = [];
 
-  lines.push(`import React from "react";`);
-  lines.push(`import ReactDOM from "react-dom/client";`);
-  lines.push(`import {App} from "@observablehq/framework/react/components";`);
-  lines.push(``);
+  lines.push('import React from "react";');
+  lines.push('import ReactDOM from "react-dom/client";');
+  lines.push('import {App} from "@observablehq/framework/react/components";');
+  lines.push("");
 
   // Generate route definitions with lazy imports
-  lines.push(`const routes = [`);
+  lines.push("const routes = [");
   for (const route of routes) {
-    lines.push(`  {`);
+    lines.push("  {");
     lines.push(`    path: ${JSON.stringify(route.path)},`);
     if (route.title) lines.push(`    title: ${JSON.stringify(route.title)},`);
     lines.push(`    component: () => import(${JSON.stringify(route.modulePath)}),`);
-    lines.push(`  },`);
+    lines.push("  },");
   }
-  lines.push(`];`);
-  lines.push(``);
+  lines.push("];");
+  lines.push("");
 
   // App config from observablehq.config
-  lines.push(`const config = {`);
+  lines.push("const config = {");
   lines.push(`  title: ${JSON.stringify(config.title ?? "")},`);
   lines.push(`  sidebar: ${JSON.stringify(config.sidebar ?? true)},`);
   lines.push(`  search: ${JSON.stringify(!!config.search)},`);
   lines.push(`  pages: ${JSON.stringify(config.pages)},`);
-  lines.push(`};`);
-  lines.push(``);
+  lines.push("};");
+  lines.push("");
 
   // Mount the app
-  lines.push(`const root = ReactDOM.createRoot(document.getElementById("observablehq-root"));`);
-  lines.push(`root.render(React.createElement(App, {config, routes}));`);
+  lines.push('const root = ReactDOM.createRoot(document.getElementById("observablehq-root"));');
+  lines.push("root.render(React.createElement(App, {config, routes}));");
 
   return lines.join("\n");
 }
 
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function escapeJs(s: string): string {

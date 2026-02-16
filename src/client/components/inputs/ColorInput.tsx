@@ -17,13 +17,7 @@ export interface ColorInputProps {
  * A color picker input component.
  * Replaces Observable's `Inputs.color({label, value})`.
  */
-export function ColorInput({
-  value,
-  onChange,
-  label,
-  disabled = false,
-  className
-}: ColorInputProps) {
+export function ColorInput({value, onChange, label, disabled = false, className}: ColorInputProps) {
   const id = useId();
 
   const handleChange = useCallback(
@@ -36,13 +30,7 @@ export function ColorInput({
   return (
     <div className={`observablehq-input observablehq-color ${className ?? ""}`}>
       {label && <label htmlFor={id}>{label}</label>}
-      <input
-        id={id}
-        type="color"
-        value={value}
-        onChange={handleChange}
-        disabled={disabled}
-      />
+      <input id={id} type="color" value={value} onChange={handleChange} disabled={disabled} />
     </div>
   );
 }

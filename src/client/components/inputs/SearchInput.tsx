@@ -53,7 +53,11 @@ export function SearchInput<T extends Record<string, unknown> = Record<string, u
       }
       const lower = q.toLowerCase();
       const results = data.filter((row) =>
-        searchColumns.some((col) => String(row[col] ?? "").toLowerCase().includes(lower))
+        searchColumns.some((col) =>
+          String(row[col] ?? "")
+            .toLowerCase()
+            .includes(lower)
+        )
       );
       onChange(results);
     },

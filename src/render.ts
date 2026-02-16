@@ -1,7 +1,7 @@
-import type {TranspileModuleOptions} from "./javascript/transpile.js";
-import {transpileModule} from "./javascript/transpile.js";
 import {enoent} from "./error.js";
 import {findModule} from "./javascript/module.js";
+import type {TranspileModuleOptions} from "./javascript/transpile.js";
+import {transpileModule} from "./javascript/transpile.js";
 import {getModuleResolver, getModuleStaticImports} from "./resolvers.js";
 
 export type RenderModuleOptions = Omit<TranspileModuleOptions, "root" | "path" | "servePath" | "params">;

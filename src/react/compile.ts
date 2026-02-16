@@ -68,9 +68,7 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   };
 
   // Determine which variables are declared across all cells (excluding import-only)
-  const allDeclarations = new Set(
-    cellInfos.filter((c) => !isImportOnly(c)).flatMap((c) => c.declarations)
-  );
+  const allDeclarations = new Set(cellInfos.filter((c) => !isImportOnly(c)).flatMap((c) => c.declarations));
 
   // Determine which built-in hooks are needed
   const needsWidth = cellInfos.some((c) => c.references.includes("width"));
@@ -87,7 +85,9 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
 
   // Build imports section
   const imports: string[] = [];
-  imports.push(`import React, {useState, useMemo, useEffect, useCallback, useRef, Suspense} from ${JSON.stringify(reactSpec)};`);
+  imports.push(
+    `import React, {useState, useMemo, useEffect, useCallback, useRef, Suspense} from ${JSON.stringify(reactSpec)};`
+  );
   imports.push(`import {CellProvider, useCellOutput, useCellInput} from ${JSON.stringify(hooksSpec)};`);
   imports.push(`import {ErrorBoundary} from ${JSON.stringify(componentsSpec)};`);
   imports.push(`import {Loading} from ${JSON.stringify(componentsSpec)};`);
@@ -135,7 +135,15 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   if (files.length > 0) {
     lines.push(`import {registerFile} from ${JSON.stringify(hooksSpec)};`);
     for (const file of files) {
-      lines.push(`registerFile(${JSON.stringify(file.name)}, ${JSON.stringify({name: file.name, mimeType: file.mimeType, path: file.path, lastModified: file.lastModified, size: file.size})});`);
+      lines.push(
+        `registerFile(${JSON.stringify(file.name)}, ${JSON.stringify({
+          name: file.name,
+          mimeType: file.mimeType,
+          path: file.path,
+          lastModified: file.lastModified,
+          size: file.size
+        })});`
+      );
     }
     lines.push("");
   }
@@ -153,35 +161,35 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   }
 
   // Page component
-  lines.push(`export default function Page() {`);
+  lines.push("export default function Page() {");
 
   // Built-in reactive values
-  if (needsWidth) lines.push(`  const [__mainRef, width] = useWidthRef();`);
-  if (needsDark) lines.push(`  const dark = useDark();`);
-  if (needsNow) lines.push(`  const now = useNow();`);
+  if (needsWidth) lines.push("  const [__mainRef, width] = useWidthRef();");
+  if (needsDark) lines.push("  const dark = useDark();");
+  if (needsNow) lines.push("  const now = useNow();");
   if (needsDisplay || needsView) {
     // suppress lint: these are used implicitly in compiled cell code
   }
 
   lines.push("");
-  lines.push(`  return (`);
-  lines.push(`    <CellProvider>`);
+  lines.push("  return (");
+  lines.push("    <CellProvider>");
   if (hasSql) {
     lines.push(`      <DuckDBProvider tables={${JSON.stringify(sql)}}>`);
   }
   if (needsWidth) {
-    lines.push(`      <div ref={__mainRef}>`);
+    lines.push("      <div ref={__mainRef}>");
   }
   lines.push(pageBody);
   if (needsWidth) {
-    lines.push(`      </div>`);
+    lines.push("      </div>");
   }
   if (hasSql) {
-    lines.push(`      </DuckDBProvider>`);
+    lines.push("      </DuckDBProvider>");
   }
-  lines.push(`    </CellProvider>`);
-  lines.push(`  );`);
-  lines.push(`}`);
+  lines.push("    </CellProvider>");
+  lines.push("  );");
+  lines.push("}");
 
   return lines.join("\n");
 }
@@ -192,15 +200,9 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
  * e.g. `import {foo} from "d3"` in one cell and `import {bar} from "d3"` in
  * another produce a single `import {foo, bar} from "d3"` statement.
  */
-function collectCellImports(
-  code: MarkdownPage["code"],
-  resolveImport: (specifier: string) => string
-): string[] {
+function collectCellImports(code: MarkdownPage["code"], resolveImport: (specifier: string) => string): string[] {
   // Track per-specifier: default import name, namespace import, named bindings
-  const specifierInfo = new Map<
-    string,
-    {defaultImport: string | null; namespace: string | null; named: Set<string>}
-  >();
+  const specifierInfo = new Map<string, {defaultImport: string | null; namespace: string | null; named: Set<string>}>();
 
   for (const cell of code) {
     for (const imp of cell.node.imports) {
@@ -212,9 +214,7 @@ function collectCellImports(
       const info = specifierInfo.get(imp.name)!;
 
       // Extract binding info from the import statement text
-      const importRegex = new RegExp(
-        `import\\s+(.+?)\\s+from\\s+["']${escapeRegex(imp.name)}["']`
-      );
+      const importRegex = new RegExp(`import\\s+(.+?)\\s+from\\s+["']${escapeRegex(imp.name)}["']`);
       const match = importRegex.exec(cell.node.input);
       if (!match) continue;
 
@@ -276,7 +276,14 @@ function escapeRegex(s: string): string {
  */
 function buildPageBody(
   page: MarkdownPage,
-  cellInfos: {id: string; mode: string; expression: boolean; source: string; declarations: string[]; references: string[]}[],
+  cellInfos: {
+    id: string;
+    mode: string;
+    expression: boolean;
+    source: string;
+    declarations: string[];
+    references: string[];
+  }[],
   importOnlyCellIds: Set<string>,
   allDeclarations: Set<string>
 ): {body: string; inlineComponents: string[]} {
@@ -287,10 +294,7 @@ function buildPageBody(
     if (cell.mode === "inline") {
       // Replace inline expression markers with JSX expression
       const inlineExpr = compileInlineCellToExpression(cell.source, cell.references, allDeclarations);
-      const pattern = new RegExp(
-        `<observablehq-loading><\\/observablehq-loading><!--:${cell.id}:-->`,
-        "g"
-      );
+      const pattern = new RegExp(`<observablehq-loading><\\/observablehq-loading><!--:${cell.id}:-->`, "g");
       // Check if this is a reactive inline expression (contains cell variable references)
       const inlineMatch = inlineExpr.match(/^__INLINE_CELL__:(.*?):__EXPR__([\s\S]*)__END__$/);
       if (inlineMatch) {
@@ -300,8 +304,8 @@ function buildPageBody(
         const componentName = `Inline_${cell.id}`;
         inlineComponents.push(
           `function ${componentName}() {\n` +
-          refs.map((r) => `  const ${r} = useCellInput(${JSON.stringify(r)});`).join("\n") +
-          `\n  return <>{${expr}}</>;\n}`
+            refs.map((r) => `  const ${r} = useCellInput(${JSON.stringify(r)});`).join("\n") +
+            `\n  return <>{${expr}}</>;\n}`
         );
         body = body.replace(pattern, `<${componentName} />`);
       } else {

@@ -1,15 +1,12 @@
+import type {AppConfig, RouteDefinition} from "../client/components/App.js";
+import type {SidebarItem, SidebarPage, SidebarSection} from "../client/components/Sidebar.js";
 import type {Config, Page, Section} from "../config.js";
-import {mergeToc} from "../config.js";
 import type {MarkdownPage} from "../markdown.js";
-import type {PageLink} from "../pager.js";
-import {findLink} from "../pager.js";
 import type {Resolvers} from "../resolvers.js";
 import {getResolvers} from "../resolvers.js";
 import {compileMarkdownToReact} from "./compile.js";
 import type {FileRegistration} from "./compile.js";
 import {generateReactPageShell} from "./page-template.js";
-import type {AppConfig, RouteDefinition} from "../client/components/App.js";
-import type {SidebarItem, SidebarPage, SidebarSection} from "../client/components/Sidebar.js";
 
 export interface ReactRenderOptions extends Config {
   root: string;
@@ -36,9 +33,7 @@ export async function renderReactPage(
 ): Promise<{html: string; pageModule: string}> {
   const {data} = page;
   const {base, path, title, preview} = options;
-  const {loaders, resolvers = await getResolvers(page, options)} = options;
-  const {draft = false, sidebar = options.sidebar} = data;
-  const toc = mergeToc(data.toc, options.toc);
+  const {resolvers = await getResolvers(page, options)} = options;
   const {resolveImport, resolveFile, resolveStylesheet, stylesheets, staticImports} = resolvers;
 
   // Build file registrations so FileAttachment() resolves correctly
@@ -60,21 +55,11 @@ export async function renderReactPage(
   // Build the page module path that will be served by the dev server
   const pageModulePath = `/_observablehq/react-pages${path}.js`;
 
-  // Convert config pages to sidebar format for the App shell
-  const appConfig = configToAppConfig(options);
-
-  // Compute pager links
-  const link = options.pager ? findLink(path, options) : null;
-  const prev = link?.prev ? {name: link.prev.name, path: link.prev.path} : null;
-  const next = link?.next ? {name: link.next.name, path: link.next.path} : null;
-
   // Collect stylesheets
   const resolvedStylesheets = Array.from(new Set(Array.from(stylesheets, resolveStylesheet)));
 
   // Collect module preloads
-  const modulePreloads = Array.from(
-    new Set(Array.from(staticImports, resolveImport).filter((s) => s.endsWith(".js")))
-  );
+  const modulePreloads = Array.from(new Set(Array.from(staticImports, resolveImport).filter((s) => s.endsWith(".js"))));
 
   const shell = generateReactPageShell({
     title: page.title ?? undefined,
@@ -96,10 +81,7 @@ export async function renderReactPage(
  * Generates a compiled React page module for a given path.
  * Used by the dev server to serve individual page modules on-demand.
  */
-export async function renderReactPageModule(
-  page: MarkdownPage,
-  options: ReactRenderOptions
-): Promise<string> {
+export async function renderReactPageModule(page: MarkdownPage, options: ReactRenderOptions): Promise<string> {
   const {path} = options;
   const {data} = page;
   const {resolvers = await getResolvers(page, options)} = options;
@@ -129,8 +111,14 @@ export async function renderReactPageModule(
 export function configToAppConfig(config: Config): AppConfig {
   // Evaluate header/footer if they are functions or strings.
   // Functions receive {title, path} context; strings are used directly.
-  const header = typeof config.header === "function" ? config.header({title: config.title}) : config.header;
-  const footer = typeof config.footer === "function" ? config.footer({title: config.title}) : config.footer;
+  const header =
+    typeof config.header === "function"
+      ? config.header({title: config.title ?? null, data: {}, path: "/"})
+      : config.header;
+  const footer =
+    typeof config.footer === "function"
+      ? config.footer({title: config.title ?? null, data: {}, path: "/"})
+      : config.footer;
   return {
     title: config.title,
     pages: configPagesToSidebarItems(config.pages),
@@ -191,7 +179,8 @@ export function generateRouteDefinitions(
   // Add routes for all configured pages
   for (let i = 0; i < allPages.length; i++) {
     const page = allPages[i];
-    const prev = i === 0 ? {name: config.title ?? "Home", path: "/"} : {name: allPages[i - 1].name, path: allPages[i - 1].path};
+    const prev =
+      i === 0 ? {name: config.title ?? "Home", path: "/"} : {name: allPages[i - 1].name, path: allPages[i - 1].path};
     const next = i < allPages.length - 1 ? {name: allPages[i + 1].name, path: allPages[i + 1].path} : null;
 
     routes.push({
@@ -210,45 +199,43 @@ export function generateRouteDefinitions(
  * Generate route definitions as a JavaScript module string.
  * This produces code that can be embedded in the app entry point.
  */
-export function generateRouteDefinitionsModule(
-  config: Config,
-  options: {moduleBasePath?: string} = {}
-): string {
+export function generateRouteDefinitionsModule(config: Config, options: {moduleBasePath?: string} = {}): string {
   const {moduleBasePath = "/_observablehq/react-pages"} = options;
   const allPages = flattenPages(config.pages);
   const lines: string[] = [];
 
-  lines.push(`export const routes = [`);
+  lines.push("export const routes = [");
 
   // Index page
-  lines.push(`  {`);
-  lines.push(`    path: "/",`);
+  lines.push("  {");
+  lines.push('    path: "/",');
   lines.push(`    title: ${JSON.stringify(config.title ?? "Home")},`);
   lines.push(`    component: () => import(${JSON.stringify(`${moduleBasePath}/index.js`)}),`);
-  lines.push(`    prev: null,`);
+  lines.push("    prev: null,");
   if (allPages.length > 0) {
     lines.push(`    next: ${JSON.stringify({name: allPages[0].name, path: allPages[0].path})},`);
   } else {
-    lines.push(`    next: null,`);
+    lines.push("    next: null,");
   }
-  lines.push(`  },`);
+  lines.push("  },");
 
   // All other pages
   for (let i = 0; i < allPages.length; i++) {
     const page = allPages[i];
-    const prev = i === 0 ? {name: config.title ?? "Home", path: "/"} : {name: allPages[i - 1].name, path: allPages[i - 1].path};
+    const prev =
+      i === 0 ? {name: config.title ?? "Home", path: "/"} : {name: allPages[i - 1].name, path: allPages[i - 1].path};
     const next = i < allPages.length - 1 ? {name: allPages[i + 1].name, path: allPages[i + 1].path} : null;
 
-    lines.push(`  {`);
+    lines.push("  {");
     lines.push(`    path: ${JSON.stringify(page.path)},`);
     lines.push(`    title: ${JSON.stringify(page.name)},`);
     lines.push(`    component: () => import(${JSON.stringify(`${moduleBasePath}${page.path}.js`)}),`);
     lines.push(`    prev: ${JSON.stringify(prev)},`);
     lines.push(`    next: ${JSON.stringify(next)},`);
-    lines.push(`  },`);
+    lines.push("  },");
   }
 
-  lines.push(`];`);
+  lines.push("];");
   return lines.join("\n");
 }
 

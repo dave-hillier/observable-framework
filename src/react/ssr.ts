@@ -1,4 +1,4 @@
-import {writeFile, unlink} from "node:fs/promises";
+import {unlink, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import type {MarkdownPage} from "../markdown.js";
@@ -38,10 +38,7 @@ export function extractStaticHtml(page: MarkdownPage): string {
  * Falls back to extractStaticHtml if the page module cannot be rendered
  * (e.g. when it has side effects that require a browser environment).
  */
-export async function renderPageToString(
-  pageModuleCode: string,
-  page: MarkdownPage
-): Promise<string> {
+export async function renderPageToString(pageModuleCode: string, page: MarkdownPage): Promise<string> {
   let tempPath: string | undefined;
   try {
     // Dynamically import ReactDOMServer — this keeps it out of the client bundle

@@ -77,32 +77,23 @@ export function PageLayout({
     if (fullTitle) document.title = fullTitle;
   }, [title, siteTitle]);
 
-  const tocConfig = typeof toc === "boolean" ? {show: toc, label: "Contents"} : {show: toc.show ?? true, label: toc.label ?? "Contents"};
+  const tocConfig =
+    typeof toc === "boolean"
+      ? {show: toc, label: "Contents"}
+      : {show: toc.show ?? true, label: toc.label ?? "Contents"};
 
   return (
     <>
       {sidebar && (
-        <Sidebar
-          title={siteTitle ?? "Home"}
-          pages={pages}
-          currentPath={path}
-          search={search}
-          onNavigate={onNavigate}
-        />
+        <Sidebar title={siteTitle ?? "Home"} pages={pages} currentPath={path} search={search} onNavigate={onNavigate} />
       )}
       <div id="observablehq-center">
         {header && <header id="observablehq-header">{header}</header>}
         {tocConfig.show && <TableOfContents label={tocConfig.label} path={path} />}
-        <main
-          id="observablehq-main"
-          ref={mainRef}
-          className={`observablehq${draft ? " observablehq--draft" : ""}`}
-        >
+        <main id="observablehq-main" ref={mainRef} className={`observablehq${draft ? " observablehq--draft" : ""}`}>
           <CellProvider>
             <ErrorBoundary>
-              <Suspense fallback={<Loading />}>
-                {children}
-              </Suspense>
+              <Suspense fallback={<Loading />}>{children}</Suspense>
             </ErrorBoundary>
           </CellProvider>
         </main>

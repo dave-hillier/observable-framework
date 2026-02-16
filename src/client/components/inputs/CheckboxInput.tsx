@@ -82,13 +82,7 @@ export interface ToggleInputProps {
  * A toggle switch component.
  * Replaces Observable's `Inputs.toggle({label, value})`.
  */
-export function ToggleInput({
-  value,
-  onChange,
-  label,
-  disabled = false,
-  className
-}: ToggleInputProps) {
+export function ToggleInput({value, onChange, label, disabled = false, className}: ToggleInputProps) {
   const id = useId();
 
   const handleChange = useCallback(
@@ -101,14 +95,7 @@ export function ToggleInput({
   return (
     <div className={`observablehq-input observablehq-toggle ${className ?? ""}`}>
       {label && <label htmlFor={id}>{label}</label>}
-      <input
-        id={id}
-        type="checkbox"
-        role="switch"
-        checked={value}
-        onChange={handleChange}
-        disabled={disabled}
-      />
+      <input id={id} type="checkbox" role="switch" checked={value} onChange={handleChange} disabled={disabled} />
     </div>
   );
 }

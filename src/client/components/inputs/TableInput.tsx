@@ -44,12 +44,8 @@ export function TableInput<T extends Record<string, unknown> = Record<string, un
   layout = "auto",
   className
 }: TableInputProps<T>) {
-  const [sortColumn, setSortColumn] = useState<string | null>(
-    typeof sortable === "string" ? sortable : null
-  );
-  const [sortDirection, setSortDirection] = useState<SortDirection>(
-    typeof sortable === "string" ? "asc" : null
-  );
+  const [sortColumn, setSortColumn] = useState<string | null>(typeof sortable === "string" ? sortable : null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(typeof sortable === "string" ? "asc" : null);
   const [page, setPage] = useState(0);
   const [selectedSet, setSelectedSet] = useState<Set<number>>(
     () => new Set(selectedRows?.map((r) => data.indexOf(r)).filter((i) => i >= 0))
@@ -127,10 +123,7 @@ export function TableInput<T extends Record<string, unknown> = Record<string, un
           {pageData.map((row, i) => {
             const originalIndex = data.indexOf(row);
             return (
-              <tr
-                key={originalIndex}
-                className={selectedSet.has(originalIndex) ? "observablehq-selected" : undefined}
-              >
+              <tr key={originalIndex} className={selectedSet.has(originalIndex) ? "observablehq-selected" : undefined}>
                 {select && (
                   <td>
                     <input
@@ -141,9 +134,7 @@ export function TableInput<T extends Record<string, unknown> = Record<string, un
                   </td>
                 )}
                 {columns.map((col) => (
-                  <td key={col}>
-                    {formatProp[col] ? formatProp[col](row[col], i, data) : String(row[col] ?? "")}
-                  </td>
+                  <td key={col}>{formatProp[col] ? formatProp[col](row[col], i, data) : String(row[col] ?? "")}</td>
                 ))}
               </tr>
             );

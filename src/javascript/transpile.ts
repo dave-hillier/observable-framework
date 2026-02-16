@@ -1,6 +1,5 @@
 import {join} from "node:path/posix";
 import type {CallExpression, Node} from "acorn";
-import type {ImportDeclaration, ImportDefaultSpecifier, ImportNamespaceSpecifier, ImportSpecifier} from "acorn";
 import {simple} from "acorn-walk";
 import mime from "mime";
 import {isPathImport, relativePath, resolvePath} from "../path.js";
@@ -104,75 +103,6 @@ export async function transpileModule(
   }
 
   return String(output);
-}
-
-function rewriteImportDeclarations(
-  output: Sourcemap,
-  body: Node,
-  resolve: (specifier: string) => string = String
-): void {
-  const declarations: ImportDeclaration[] = [];
-
-  simple(body, {
-    ImportDeclaration(node) {
-      if (isStringLiteral(node.source)) {
-        declarations.push(node);
-      }
-    }
-  });
-
-  const specifiers: string[] = [];
-  const imports: string[] = [];
-  for (const node of declarations) {
-    output.delete(node.start, node.end + +(output.input[node.end] === "\n"));
-    specifiers.push(rewriteImportSpecifiers(node));
-    imports.push(`import(${annotatePath(resolve(getStringLiteralValue(node.source as StringLiteral)))})`);
-  }
-  if (declarations.length > 1) {
-    output.insertLeft(0, `const [${specifiers.join(", ")}] = await Promise.all([${imports.join(", ")}]);\n`);
-  } else if (declarations.length === 1) {
-    output.insertLeft(0, `const ${specifiers[0]} = await ${imports[0]};\n`);
-  }
-}
-
-function rewriteImportSpecifiers(node: ImportDeclaration): string {
-  return node.specifiers.some(isNotNamespaceSpecifier)
-    ? `{${node.specifiers.filter(isNotNamespaceSpecifier).map(rewriteImportSpecifier).join(", ")}}`
-    : node.specifiers.find(isNamespaceSpecifier)?.local.name ?? "{}";
-}
-
-function rewriteImportSpecifier(node: ImportSpecifier | ImportDefaultSpecifier): string {
-  return isDefaultSpecifier(node)
-    ? `default: ${getLocalName(node)}`
-    : getImportedName(node) === getLocalName(node)
-    ? getLocalName(node)
-    : `${getImportedName(node)}: ${getLocalName(node)}`;
-}
-
-function getLocalName(node: ImportSpecifier | ImportDefaultSpecifier): string {
-  return node.local.name;
-}
-
-function getImportedName(node: ImportSpecifier): string {
-  return node.imported.type === "Identifier" ? node.imported.name : node.imported.raw!;
-}
-
-function isDefaultSpecifier(
-  node: ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier
-): node is ImportDefaultSpecifier {
-  return node.type === "ImportDefaultSpecifier";
-}
-
-function isNamespaceSpecifier(
-  node: ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier
-): node is ImportNamespaceSpecifier {
-  return node.type === "ImportNamespaceSpecifier";
-}
-
-function isNotNamespaceSpecifier(
-  node: ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier
-): node is ImportSpecifier | ImportDefaultSpecifier {
-  return node.type !== "ImportNamespaceSpecifier";
 }
 
 export function rewriteParams(output: Sourcemap, body: Node, params: Params, input: string): void {

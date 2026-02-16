@@ -21,13 +21,7 @@ export interface ButtonInputProps {
  *   const [count, setCount] = useState(0);
  *   <ButtonInput content="Increment" onClick={() => setCount(c => c + 1)} />
  */
-export function ButtonInput({
-  content,
-  label,
-  onClick,
-  disabled = false,
-  className
-}: ButtonInputProps) {
+export function ButtonInput({content, label, onClick, disabled = false, className}: ButtonInputProps) {
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
       e.preventDefault();
