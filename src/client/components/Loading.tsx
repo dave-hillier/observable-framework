@@ -12,9 +12,5 @@ export interface LoadingProps {
  * Replaces Observable's `<observablehq-loading>` custom element.
  */
 export function Loading({message, className}: LoadingProps) {
-  return (
-    <div className={`observablehq-loading ${className ?? ""}`}>
-      {message && <span>{message}</span>}
-    </div>
-  );
+  return <div className={`observablehq-loading ${className ?? ""}`}>{message && <span>{message}</span>}</div>;
 }

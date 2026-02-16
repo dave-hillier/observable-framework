@@ -13,11 +13,10 @@ import type {Logger, Writer} from "./logger.js";
 import type {MarkdownPage} from "./markdown.js";
 import {populateNpmCache, resolveNpmImport, rewriteNpmImports} from "./npm.js";
 import {isAssetPath, isPathImport, relativePath, resolvePath, within} from "./path.js";
-import {renderModule} from "./render.js";
 import type {FileRegistration} from "./react/index.js";
 import {compileMarkdownToReact, generateReactPageShell} from "./react/index.js";
-import {configToAppConfig, generateRouteDefinitions} from "./react/render.js";
 import {extractStaticHtml} from "./react/ssr.js";
+import {renderModule} from "./render.js";
 import type {Resolvers} from "./resolvers.js";
 import {getModuleResolvers, getResolvers} from "./resolvers.js";
 import {resolveStylesheetPath} from "./resolvers.js";
@@ -441,7 +440,8 @@ export async function build(
 
     // Resolve the React bootstrap module aliases for the shell HTML.
     const reactBootstrap = aliases.get("/_observablehq/react-bootstrap.js") ?? "/_observablehq/react-bootstrap.js";
-    const reactDomBootstrap = aliases.get("/_observablehq/react-dom-bootstrap.js") ?? "/_observablehq/react-dom-bootstrap.js";
+    const reactDomBootstrap =
+      aliases.get("/_observablehq/react-dom-bootstrap.js") ?? "/_observablehq/react-dom-bootstrap.js";
     const frameworkReact = aliases.get("/_observablehq/framework-react.js") ?? "/_observablehq/framework-react.js";
 
     // Step 3: Write a React shell HTML for each page path.

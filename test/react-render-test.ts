@@ -1,14 +1,13 @@
 import assert from "node:assert";
 import {normalizeConfig} from "../src/config.js";
 import {parseMarkdown} from "../src/markdown.js";
-import {compileMarkdownToReact} from "../src/react/compile.js";
+import {generateAppEntryModule, generateReactPageShell} from "../src/react/page-template.js";
 import {
   configToAppConfig,
   generateRouteDefinitions,
   generateRouteDefinitionsModule,
   renderReactPageModule
 } from "../src/react/render.js";
-import {generateReactPageShell, generateAppEntryModule} from "../src/react/page-template.js";
 
 const testConfig = normalizeConfig({
   root: "docs",
@@ -157,8 +156,10 @@ More text.
     const module = await renderReactPageModule(page, {...testConfig, path: "/test"});
     // The compiled HTML should preserve heading IDs for the TableOfContents
     // component to find via its IntersectionObserver
-    assert.ok(module.includes("section-one") || module.includes("Section One"),
-      "should preserve heading content for TOC discovery");
+    assert.ok(
+      module.includes("section-one") || module.includes("Section One"),
+      "should preserve heading content for TOC discovery"
+    );
   });
 
   it("route definitions include pager links", () => {
@@ -332,7 +333,10 @@ describe("Phase 7.3: Base path in React shell", () => {
       base: "/myapp/"
     });
     assert.ok(html.includes("/myapp/_observablehq/react-bootstrap.js"), "should prefix react-bootstrap with base");
-    assert.ok(html.includes("/myapp/_observablehq/react-dom-bootstrap.js"), "should prefix react-dom-bootstrap with base");
+    assert.ok(
+      html.includes("/myapp/_observablehq/react-dom-bootstrap.js"),
+      "should prefix react-dom-bootstrap with base"
+    );
     assert.ok(html.includes("/myapp/_observablehq/framework-react.js"), "should prefix framework-react with base");
   });
 

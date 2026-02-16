@@ -1,13 +1,13 @@
 import assert from "node:assert";
 import {
-  registerFile,
+  FileAttachment,
   SQLiteDatabaseClient,
   Workbook,
   ZipArchive,
   ZipArchiveEntry,
-  FileAttachment
+  registerFile
 } from "../src/client/hooks/useFileAttachment.js";
-import type {FileAttachmentHandle, FileMetadata} from "../src/client/hooks/useFileAttachment.js";
+import type {FileAttachmentHandle} from "../src/client/hooks/useFileAttachment.js";
 
 // =============================================================================
 // FileAttachment API completeness

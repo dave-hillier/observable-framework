@@ -5,7 +5,7 @@ import {build} from "esbuild";
 import type {AstNode, OutputChunk, Plugin, ResolveIdResult} from "rollup";
 import {rollup} from "rollup";
 import esbuild from "rollup-plugin-esbuild";
-import {getClientPath, getStylePath} from "./files.js";
+import {getStylePath} from "./files.js";
 import {annotatePath} from "./javascript/annotate.js";
 import type {StringLiteral} from "./javascript/source.js";
 import {getStringLiteralValue, isStringLiteral} from "./javascript/source.js";

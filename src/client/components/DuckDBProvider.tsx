@@ -1,6 +1,6 @@
-import React, {createContext, useContext, useEffect, useMemo, useRef, useState, useCallback} from "react";
+import React, {createContext, useContext, useEffect, useMemo, useRef, useState} from "react";
 import type {ReactNode} from "react";
-import {onFileChange, getFileMetadata} from "../hooks/useFileAttachment.js";
+import {getFileMetadata, onFileChange} from "../hooks/useFileAttachment.js";
 import type {FileMetadata} from "../hooks/useFileAttachment.js";
 
 /**
@@ -15,7 +15,10 @@ interface DuckDBContextValue {
   /** Execute a SQL query and return results */
   query: (sql: string, params?: unknown[]) => Promise<QueryResult>;
   /** Execute a SQL query and return a streaming reader */
-  queryStream: (sql: string, params?: unknown[]) => Promise<{schema: unknown; readRows: () => AsyncGenerator<unknown[]>}>;
+  queryStream: (
+    sql: string,
+    params?: unknown[]
+  ) => Promise<{schema: unknown; readRows: () => AsyncGenerator<unknown[]>}>;
   /** Execute a SQL query and return the first row */
   queryRow: (sql: string, params?: unknown[]) => Promise<Record<string, unknown> | null>;
   /** Register a table from a file source or SQL definition */
@@ -46,12 +49,7 @@ export interface DuckDBProviderProps {
 
 /** Returns true if source looks like a file/asset path (not an SQL query). */
 function isFilePath(source: string): boolean {
-  return (
-    source.startsWith("/") ||
-    source.startsWith("./") ||
-    source.startsWith("../") ||
-    /^https?:\/\//i.test(source)
-  );
+  return source.startsWith("/") || source.startsWith("./") || source.startsWith("../") || /^https?:\/\//i.test(source);
 }
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -100,11 +98,7 @@ function escapeSqlString(value: string): string {
 // Format-aware table insertion (mirrors src/client/stdlib/duckdb.js logic)
 // ---------------------------------------------------------------------------
 
-async function insertFileTable(
-  db: any,
-  name: string,
-  source: string
-): Promise<void> {
+async function insertFileTable(db: any, name: string, source: string): Promise<void> {
   const url = resolveSourceUrl(source);
   const mimeType = inferMimeType(source);
   const fileName = source.split("/").pop() || source;
@@ -146,13 +140,17 @@ async function insertFileTable(
       await conn.insertArrowFromIPCStream(buffer, {name, schema: "main"});
     } else if (/\.parquet$/i.test(fileName)) {
       await conn.query(
-        `CREATE OR REPLACE TABLE ${escapeSqlIdentifier(name)} AS SELECT * FROM parquet_scan(${escapeSqlString(fileName)})`
+        `CREATE OR REPLACE TABLE ${escapeSqlIdentifier(name)} AS SELECT * FROM parquet_scan(${escapeSqlString(
+          fileName
+        )})`
       );
     } else if (/\.(db|ddb|duckdb)$/i.test(fileName)) {
       await conn.query(`ATTACH ${escapeSqlString(fileName)} AS ${escapeSqlIdentifier(name)} (READ_ONLY)`);
     } else {
       // Let DuckDB auto-detect the format
-      await conn.query(`CREATE OR REPLACE TABLE ${escapeSqlIdentifier(name)} AS SELECT * FROM ${escapeSqlString(fileName)}`);
+      await conn.query(
+        `CREATE OR REPLACE TABLE ${escapeSqlIdentifier(name)} AS SELECT * FROM ${escapeSqlString(fileName)}`
+      );
     }
   } finally {
     await conn.close();

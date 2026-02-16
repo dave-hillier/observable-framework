@@ -61,11 +61,7 @@ export function PlotFigure({options, className, style}: PlotFigureProps) {
  * A responsive PlotFigure that automatically sets width based on container size.
  * Uses ResizeObserver to track container width and re-render the chart.
  */
-export function ResponsivePlotFigure({
-  options,
-  className,
-  style
-}: PlotFigureProps) {
+export function ResponsivePlotFigure({options, className, style}: PlotFigureProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

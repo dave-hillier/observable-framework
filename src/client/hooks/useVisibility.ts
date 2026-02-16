@@ -16,10 +16,7 @@ export function useVisibility(ref: RefObject<HTMLElement | null>, options?: Inte
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setVisible(entry.isIntersecting),
-      options
-    );
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), options);
     observer.observe(el);
     return () => observer.disconnect();
   }, [ref, options?.threshold, options?.rootMargin]);

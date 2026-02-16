@@ -1,9 +1,9 @@
 import assert from "node:assert";
-import {generateReactPageShell} from "../src/react/page-template.js";
-import {extractStaticHtml} from "../src/react/ssr.js";
-import {compileMarkdownToReact} from "../src/react/compile.js";
 import {normalizeConfig} from "../src/config.js";
 import type {MarkdownPage} from "../src/markdown.js";
+import {compileMarkdownToReact} from "../src/react/compile.js";
+import {generateReactPageShell} from "../src/react/page-template.js";
+import {extractStaticHtml} from "../src/react/ssr.js";
 
 // =============================================================================
 // Search integration
@@ -89,7 +89,7 @@ describe("Granular HMR in React mode", () => {
 describe("SSG static HTML extraction", () => {
   it("extracts static HTML body from a markdown page", () => {
     const page = {
-      body: "<h1>Hello</h1>\n<p>World</p>\n<!--:cell1:--><div class=\"observablehq\">code cell</div>",
+      body: '<h1>Hello</h1>\n<p>World</p>\n<!--:cell1:--><div class="observablehq">code cell</div>',
       title: "Test",
       head: null,
       header: null,
@@ -107,7 +107,7 @@ describe("SSG static HTML extraction", () => {
 
   it("returns empty string for a page with only code cells", () => {
     const page = {
-      body: "<!--:cell1:--><div class=\"observablehq\">code only</div>",
+      body: '<!--:cell1:--><div class="observablehq">code only</div>',
       title: "Test",
       head: null,
       header: null,
@@ -161,7 +161,7 @@ describe("DuckDB table registration", () => {
   });
 
   it("file registry supports change subscriptions", async () => {
-    const {registerFile, onFileChange, getFileMetadata} = await import("../src/client/hooks/useFileAttachment.js");
+    const {registerFile, onFileChange} = await import("../src/client/hooks/useFileAttachment.js");
     const changes: {name: string; meta: any}[] = [];
     const unsub = onFileChange((name, meta) => changes.push({name, meta}));
 
@@ -257,10 +257,12 @@ describe("SQL front-matter compile integration", () => {
       header: null,
       footer: null,
       code: [],
-      data: {sql: {
-        raw: "/data/raw.csv",
-        summary: "SELECT region, SUM(amount) FROM raw GROUP BY region"
-      }},
+      data: {
+        sql: {
+          raw: "/data/raw.csv",
+          summary: "SELECT region, SUM(amount) FROM raw GROUP BY region"
+        }
+      },
       style: null
     } as unknown as MarkdownPage;
 
@@ -397,4 +399,3 @@ describe("Enhanced SSR extraction", () => {
     assert.ok(html.includes("<p>Content</p>"), "should preserve paragraphs");
   });
 });
-

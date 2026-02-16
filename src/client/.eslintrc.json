@@ -3,6 +3,21 @@
     "browser": true
   },
   "rules": {
-    "import/no-unresolved": [2, {"ignore": ["^npm:", "^observablehq:", "^mermaid$", "^katex$", "^@viz-js/viz$", "^@duckdb/duckdb-wasm$", "^@observablehq/plot$", "^apache-arrow$", "^hyparquet$"]}]
+    "import/no-unresolved": [
+      2,
+      {
+        "ignore": [
+          "^npm:",
+          "^observablehq:",
+          "^mermaid$",
+          "^katex$",
+          "^@viz-js/viz$",
+          "^@duckdb/duckdb-wasm$",
+          "^@observablehq/plot$",
+          "^apache-arrow$",
+          "^hyparquet$"
+        ]
+      }
+    ]
   }
 }

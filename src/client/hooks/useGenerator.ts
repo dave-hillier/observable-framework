@@ -46,7 +46,7 @@ export function useGenerator<T>(factory: () => AsyncGenerator<T, void, unknown>,
       cancelled = true;
       gen.return(undefined as never);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — generator is created once on mount
 
   return value;
 }

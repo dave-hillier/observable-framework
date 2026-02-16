@@ -42,9 +42,7 @@ export function FileInput({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (files && files.length > 0) {
-        setFileName(
-          files.length === 1 ? files[0].name : `${files.length} files selected`
-        );
+        setFileName(files.length === 1 ? files[0].name : `${files.length} files selected`);
       } else {
         setFileName("");
       }

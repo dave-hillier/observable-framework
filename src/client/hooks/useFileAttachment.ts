@@ -1,4 +1,4 @@
-import {useMemo, useState, useEffect} from "react";
+import {useEffect, useMemo, useState} from "react";
 
 /**
  * File metadata registered at page load time by the framework.
@@ -219,7 +219,8 @@ let _sqlitePromise: Promise<any> | null = null;
 
 function _ensureSqlJs(): Promise<any> {
   if (!_sqlitePromise) {
-    // @ts-ignore — sql.js is resolved at bundle time by the framework's rollup resolver
+    // @ts-expect-error — sql.js is resolved at bundle time by the framework's rollup resolver
+    // eslint-disable-next-line import/no-unresolved
     _sqlitePromise = import("sql.js").then((mod: any) => {
       const initSqlJs = mod.default ?? mod;
       return initSqlJs({
@@ -263,8 +264,8 @@ function sqliteType(type: string): string {
       return /^(?:(?:(?:VARYING|NATIVE) )?CHARACTER|(?:N|VAR|NVAR)CHAR)\(/.test(type)
         ? "string"
         : /^(?:DECIMAL|NUMERIC)\(/.test(type)
-          ? "number"
-          : "other";
+        ? "number"
+        : "other";
   }
 }
 
@@ -349,7 +350,8 @@ let _excelPromise: Promise<any> | null = null;
 
 function _ensureExcelJs(): Promise<any> {
   if (!_excelPromise) {
-    // @ts-ignore — exceljs is resolved at bundle time by the framework's rollup resolver
+    // @ts-expect-error — exceljs is resolved at bundle time by the framework's rollup resolver
+    // eslint-disable-next-line import/no-unresolved
     _excelPromise = import("exceljs");
   }
   return _excelPromise;
@@ -409,7 +411,7 @@ function parseRange(
 }
 
 function extractSheet(sheet: any, {range, headers}: {range?: string; headers?: boolean} = {}): any[] {
-  let [[c0, r0], [c1, r1]] = parseRange(range, sheet);
+  let [[c0, r0], [c1, r1]] = parseRange(range, sheet); // eslint-disable-line prefer-const
   const headerRow = headers ? sheet._rows[r0++] : null;
   let names: any = new Set(["#"]);
   for (let n = c0; n <= c1; n++) {
@@ -454,11 +456,7 @@ export class Workbook {
 
   sheet(name: string | number, options?: {range?: string; headers?: boolean}): any[] {
     const sname =
-      typeof name === "number"
-        ? this.sheetNames[name]
-        : this.sheetNames.includes((name = `${name}`))
-          ? name
-          : null;
+      typeof name === "number" ? this.sheetNames[name] : this.sheetNames.includes((name = `${name}`)) ? name : null;
     if (sname == null) throw new Error(`Sheet not found: ${name}`);
     const sheet = this._.getWorksheet(sname);
     return extractSheet(sheet, options);
@@ -563,10 +561,16 @@ export function useFileData<T>(name: string, loader: (file: FileAttachmentHandle
   useEffect(() => {
     let cancelled = false;
     loader(file).then(
-      (result) => { if (!cancelled) setData(result); },
-      (err) => { if (!cancelled) setError(err); }
+      (result) => {
+        if (!cancelled) setData(result);
+      },
+      (err) => {
+        if (!cancelled) setError(err);
+      }
     );
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [file, loader]);
 
   if (error) throw error;

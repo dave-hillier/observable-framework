@@ -73,7 +73,10 @@ export function invalidateAllData(): void {
  *   if (error) return <Error error={error} />;
  *   return <Chart data={data} />;
  */
-export function useAsyncData<T>(loader: () => Promise<T>, deps: unknown[] = []): {
+export function useAsyncData<T>(
+  loader: () => Promise<T>,
+  deps: unknown[] = []
+): {
   data: T | undefined;
   loading: boolean;
   error: unknown;

@@ -2,11 +2,11 @@ import assert from "node:assert";
 import {transform} from "esbuild";
 import {normalizeConfig} from "../src/config.js";
 import {parseMarkdown} from "../src/markdown.js";
-import {compileMarkdownToReact} from "../src/react/compile.js";
-import {configToAppConfig} from "../src/react/render.js";
-import {generateReactPageShell} from "../src/react/page-template.js";
-import {extractStaticHtml} from "../src/react/ssr.js";
 import type {MarkdownPage} from "../src/markdown.js";
+import {compileMarkdownToReact} from "../src/react/compile.js";
+import {generateReactPageShell} from "../src/react/page-template.js";
+import {configToAppConfig} from "../src/react/render.js";
+import {extractStaticHtml} from "../src/react/ssr.js";
 
 const {md} = normalizeConfig({root: "docs"});
 
@@ -42,7 +42,7 @@ describe("P2.1: htmlToJsx attribute conversion", () => {
   });
 
   it("converts SVG attributes to camelCase", async () => {
-    const source = `<svg><line stroke-width="2" stroke-linecap="round" /></svg>\n`;
+    const source = '<svg><line stroke-width="2" stroke-linecap="round" /></svg>\n';
     const page = parseMarkdown(source, {md, path: "/test"});
     const result = compileMarkdownToReact(page, {path: "/test"});
     assert.ok(result.includes("strokeWidth="), "should convert stroke-width");
@@ -510,8 +510,14 @@ describe("P3.1: XSS prevention in visualization components", () => {
   it("MermaidDiagram uses ref-based rendering and React text for errors", async () => {
     const fs = await import("node:fs/promises");
     const source = await fs.readFile("src/client/components/MermaidDiagram.tsx", "utf8");
-    assert.ok(!source.includes("dangerouslySetInnerHTML={{"), "MermaidDiagram should not use dangerouslySetInnerHTML prop");
-    assert.ok(source.includes("containerRef.current.innerHTML"), "MermaidDiagram should use ref-based innerHTML for SVG");
+    assert.ok(
+      !source.includes("dangerouslySetInnerHTML={{"),
+      "MermaidDiagram should not use dangerouslySetInnerHTML prop"
+    );
+    assert.ok(
+      source.includes("containerRef.current.innerHTML"),
+      "MermaidDiagram should use ref-based innerHTML for SVG"
+    );
     assert.ok(source.includes("{error}"), "MermaidDiagram should render errors as React text content");
   });
 
@@ -527,7 +533,10 @@ describe("P3.1: XSS prevention in visualization components", () => {
     const fs = await import("node:fs/promises");
     const source = await fs.readFile("src/client/components/TexMath.tsx", "utf8");
     assert.ok(!source.includes("dangerouslySetInnerHTML={{"), "TexMath should not use dangerouslySetInnerHTML prop");
-    assert.ok(source.includes("containerRef.current.innerHTML"), "TexMath should use ref-based innerHTML for rendered output");
+    assert.ok(
+      source.includes("containerRef.current.innerHTML"),
+      "TexMath should use ref-based innerHTML for rendered output"
+    );
     assert.ok(source.includes("{error}"), "TexMath should render errors as React text content");
   });
 });
