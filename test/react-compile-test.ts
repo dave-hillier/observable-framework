@@ -466,3 +466,93 @@ First: \${a}, Second: \${b}, Combined: \${a + b}.
     await assertValidJsx(result, "multiple reactive inline expressions");
   });
 });
+
+// =============================================================================
+// Regression: AST-driven HTML→JSX
+// =============================================================================
+
+describe("AST-driven HTML→JSX", () => {
+  it("preserves URL values containing semicolons in inline styles", async () => {
+    const source = '<div style="background: url(data:image/svg+xml;base64,PHN2Zz4=); color: red">x</div>\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(result.includes("data:image/svg+xml;base64,PHN2Zz4="), "URL with embedded semicolon must survive intact");
+    assert.ok(result.includes("color:") && result.includes('"red"'), "color rule must survive");
+    await assertValidJsx(result, "url style");
+  });
+
+  it("preserves quoted semicolons in inline style values", async () => {
+    const source = "<div style='content: \"a; b\"'>x</div>\n";
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    await assertValidJsx(result, "quoted semicolon style");
+    assert.ok(/content:[^,}]*a;\s*b/.test(result), "quoted ; in style must survive");
+  });
+
+  it("does not rewrite class= text inside fenced code blocks", async () => {
+    const source = '```html\n<a class="x">y</a>\n```\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    // The HTML inside the code block should still read class= (not className=)
+    // It will be HTML-encoded inside the <code> textContent.
+    assert.ok(
+      result.includes("class=") || result.includes("class&#x3D;") || result.includes("class=&quot;"),
+      "literal class= text inside <code> must not be rewritten"
+    );
+    await assertValidJsx(result, "code block class= text");
+  });
+
+  it("self-closes void elements driven from a fixed set", async () => {
+    const source = '<img src="x.png" alt="x">\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(/<img\b[^>]*\/>/.test(result), "img must be self-closed");
+    await assertValidJsx(result, "void element");
+  });
+});
+
+// =============================================================================
+// Regression: AST-driven import collection
+// =============================================================================
+
+describe("AST-driven import collection", () => {
+  it("preserves aliased named imports across the merge", async () => {
+    const source =
+      '```js\nimport {scaleLinear as scale} from "d3";\nscale;\n```\n\n```js\nimport {select} from "d3";\nselect;\n```\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(/scaleLinear as scale/.test(result), "alias must survive");
+    assert.ok(/\bselect\b/.test(result), "second binding must survive");
+    await assertValidJsx(result, "aliased imports");
+  });
+
+  it("merges multi-line imports with comments", async () => {
+    const source = '```js\nimport {\n  // pick these\n  foo,\n  bar\n} from "mod";\nfoo; bar;\n```\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(/\{[^}]*\bfoo\b[^}]*\bbar\b[^}]*\}/.test(result), "multi-line bindings recovered");
+    await assertValidJsx(result, "multi-line import");
+  });
+
+  it("merges default + named imports from the same specifier across cells", async () => {
+    const source =
+      '```js\nimport React from "npm:react";\nReact;\n```\n\n```js\nimport {useState} from "npm:react";\nuseState;\n```\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    // Find the user-emitted import (not the framework one) — both default and named must be present in one statement
+    assert.ok(
+      /import\s+React\s*,\s*\{[^}]*useState/.test(result) || /import\s+\{[^}]*useState[^}]*\}\s*,\s*React/.test(result),
+      "default and named must merge into one statement"
+    );
+    await assertValidJsx(result, "default+named merge");
+  });
+
+  it("namespace import supersedes named imports from the same specifier", async () => {
+    const source =
+      '```js\nimport * as d3 from "npm:d3";\nd3;\n```\n\n```js\nimport {select} from "npm:d3";\nselect;\n```\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(/\*\s+as\s+d3/.test(result), "namespace must survive");
+    await assertValidJsx(result, "namespace+named");
+  });
+});
