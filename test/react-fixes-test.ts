@@ -2,11 +2,10 @@ import assert from "node:assert";
 import {transform} from "esbuild";
 import {normalizeConfig} from "../src/config.js";
 import {parseMarkdown} from "../src/markdown.js";
-import {compileMarkdownToReact} from "../src/react/compile.js";
-import {configToAppConfig} from "../src/react/render.js";
-import {generateReactPageShell} from "../src/react/page-template.js";
-import {extractStaticHtml} from "../src/react/ssr.js";
 import type {MarkdownPage} from "../src/markdown.js";
+import {compileMarkdownToReact} from "../src/react/compile.js";
+import {generateReactPageShell} from "../src/react/page-template.js";
+import {configToAppConfig} from "../src/react/render.js";
 
 const {md} = normalizeConfig({root: "docs"});
 
@@ -42,7 +41,7 @@ describe("P2.1: htmlToJsx attribute conversion", () => {
   });
 
   it("converts SVG attributes to camelCase", async () => {
-    const source = `<svg><line stroke-width="2" stroke-linecap="round" /></svg>\n`;
+    const source = "<svg><line stroke-width=\"2\" stroke-linecap=\"round\" /></svg>\n";
     const page = parseMarkdown(source, {md, path: "/test"});
     const result = compileMarkdownToReact(page, {path: "/test"});
     assert.ok(result.includes("strokeWidth="), "should convert stroke-width");
@@ -296,42 +295,6 @@ describe("P2.4: TableOfContents component", () => {
 // =============================================================================
 // P2.2: SSR extraction improvements
 // =============================================================================
-
-describe("P2.2: SSR extraction regex fix", () => {
-  it("strips cell div containers from body", () => {
-    const page = {
-      body: '<h1>Title</h1>\n<div class="observablehq observablehq--block">code output</div>\n<p>After</p>',
-      title: "Test",
-      head: null,
-      header: null,
-      footer: null,
-      code: [],
-      data: {toc: {show: true, label: "Contents"}, sql: {}},
-      style: null
-    } as unknown as MarkdownPage;
-
-    const html = extractStaticHtml(page);
-    assert.ok(html.includes("<h1>Title</h1>"), "should keep headings");
-    assert.ok(html.includes("<p>After</p>"), "should keep paragraphs");
-    assert.ok(!html.includes("code output"), "should strip observablehq cell divs");
-  });
-
-  it("handles nested observablehq classes", () => {
-    const page = {
-      body: '<div class="observablehq observablehq--block"><div>nested</div></div><p>Keep</p>',
-      title: "Test",
-      head: null,
-      header: null,
-      footer: null,
-      code: [],
-      data: {toc: {show: true, label: "Contents"}, sql: {}},
-      style: null
-    } as unknown as MarkdownPage;
-
-    const html = extractStaticHtml(page);
-    assert.ok(html.includes("<p>Keep</p>"), "should keep non-cell content");
-  });
-});
 
 // =============================================================================
 // P1.1: framework-react.ts exports

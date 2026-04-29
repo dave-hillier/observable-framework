@@ -15,7 +15,6 @@ export function generateReactPageShell(options: {
   stylesheets: string[];
   modulePreloads: string[];
   pageModulePath: string;
-  bodyHtml?: string; // Pre-rendered HTML for SSG (fast first-paint only; not hydrated since React's tree won't match)
   base?: string;
   isPreview?: boolean;
   hash?: string; // Content hash for HMR change detection
@@ -25,7 +24,7 @@ export function generateReactPageShell(options: {
   head?: string; // Custom head content from config/page (analytics, fonts, etc.)
   strict?: boolean; // Enable React.StrictMode wrapper
 }): string {
-  const {title, siteTitle, stylesheets, modulePreloads, pageModulePath, bodyHtml, base = "/", isPreview, head, strict = false} = options;
+  const {title, siteTitle, stylesheets, modulePreloads, pageModulePath, base = "/", isPreview, head, strict = false} = options;
   const reactBootstrap = options.reactBootstrapPath ?? `${base}_observablehq/react-bootstrap.js`;
   const reactDomBootstrap = options.reactDomBootstrapPath ?? `${base}_observablehq/react-dom-bootstrap.js`;
   const frameworkReact = options.frameworkReactPath ?? `${base}_observablehq/framework-react.js`;
@@ -43,7 +42,7 @@ ${modulePreloads.map((href) => `<link rel="modulepreload" href="${escapeHtml(hre
 ${head ?? ""}
 </head>
 <body>
-<div id="observablehq-root">${bodyHtml ?? ""}</div>
+<div id="observablehq-root"></div>
 <script type="module">
 import React from "${escapeJs(reactBootstrap)}";
 import ReactDOM from "${escapeJs(reactDomBootstrap)}";
@@ -145,35 +144,35 @@ ${isPreview ? `
 export function generateAppEntryModule(config: Config, routes: Array<{path: string; modulePath: string; title?: string}>): string {
   const lines: string[] = [];
 
-  lines.push(`import React from "react";`);
-  lines.push(`import ReactDOM from "react-dom/client";`);
-  lines.push(`import {App} from "@observablehq/framework/react/components";`);
-  lines.push(``);
+  lines.push("import React from \"react\";");
+  lines.push("import ReactDOM from \"react-dom/client\";");
+  lines.push("import {App} from \"@observablehq/framework/react/components\";");
+  lines.push("");
 
   // Generate route definitions with lazy imports
-  lines.push(`const routes = [`);
+  lines.push("const routes = [");
   for (const route of routes) {
-    lines.push(`  {`);
+    lines.push("  {");
     lines.push(`    path: ${JSON.stringify(route.path)},`);
     if (route.title) lines.push(`    title: ${JSON.stringify(route.title)},`);
     lines.push(`    component: () => import(${JSON.stringify(route.modulePath)}),`);
-    lines.push(`  },`);
+    lines.push("  },");
   }
-  lines.push(`];`);
-  lines.push(``);
+  lines.push("];");
+  lines.push("");
 
   // App config from observablehq.config
-  lines.push(`const config = {`);
+  lines.push("const config = {");
   lines.push(`  title: ${JSON.stringify(config.title ?? "")},`);
   lines.push(`  sidebar: ${JSON.stringify(config.sidebar ?? true)},`);
   lines.push(`  search: ${JSON.stringify(!!config.search)},`);
   lines.push(`  pages: ${JSON.stringify(config.pages)},`);
-  lines.push(`};`);
-  lines.push(``);
+  lines.push("};");
+  lines.push("");
 
   // Mount the app
-  lines.push(`const root = ReactDOM.createRoot(document.getElementById("observablehq-root"));`);
-  lines.push(`root.render(React.createElement(App, {config, routes}));`);
+  lines.push("const root = ReactDOM.createRoot(document.getElementById(\"observablehq-root\"));");
+  lines.push("root.render(React.createElement(App, {config, routes}));");
 
   return lines.join("\n");
 }
