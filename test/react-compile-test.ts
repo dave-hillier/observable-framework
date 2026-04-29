@@ -95,7 +95,7 @@ describe("Phase 2.1: Expression cells", () => {
   });
 
   it("compiles an async expression cell", () => {
-    const page = parseMarkdown("```js\nawait fetch(\"/api\")\n```\n", {md, path: "/test"});
+    const page = parseMarkdown('```js\nawait fetch("/api")\n```\n', {md, path: "/test"});
     const result = compileMarkdownToReact(page, {path: "/test"});
     assert.ok(result.includes("useState(undefined)"), "should use useState for async");
     assert.ok(result.includes("useEffect"), "should use useEffect for async");
@@ -137,7 +137,10 @@ describe("Phase 2.2: Program cells", () => {
   });
 
   it("compiles an async declaration cell with useState + useEffect", () => {
-    const page = parseMarkdown("```js\nconst data = await fetch(\"/api\").then(r => r.json());\n```\n", {md, path: "/test"});
+    const page = parseMarkdown('```js\nconst data = await fetch("/api").then(r => r.json());\n```\n', {
+      md,
+      path: "/test"
+    });
     const result = compileMarkdownToReact(page, {path: "/test"});
     assert.ok(result.includes("useState(undefined)"), "should use useState");
     assert.ok(result.includes("useEffect"), "should use useEffect");
@@ -146,7 +149,7 @@ describe("Phase 2.2: Program cells", () => {
   });
 
   it("compiles a side-effect-only cell with useEffect", () => {
-    const page = parseMarkdown("```js\nconsole.log(\"hello\");\n```\n", {md, path: "/test"});
+    const page = parseMarkdown('```js\nconsole.log("hello");\n```\n', {md, path: "/test"});
     const result = compileMarkdownToReact(page, {path: "/test"});
     assert.ok(result.includes("useEffect"), "should use useEffect for side effects");
     assert.ok(result.includes("return null"), "should return null");
@@ -179,10 +182,10 @@ describe("Phase 2.3: Cross-cell references", () => {
 
 describe("Phase 2.4: Import declarations", () => {
   it("hoists imports to module level", () => {
-    const page = parseMarkdown("```js\nimport * as Plot from \"npm:@observablehq/plot\";\n```\n", {md, path: "/test"});
+    const page = parseMarkdown('```js\nimport * as Plot from "npm:@observablehq/plot";\n```\n', {md, path: "/test"});
     const result = compileMarkdownToReact(page, {
       path: "/test",
-      resolveImport: (s) => s.startsWith("npm:") ? s.slice(4) : s
+      resolveImport: (s) => (s.startsWith("npm:") ? s.slice(4) : s)
     });
     const lines = result.split("\n");
     const importLine = lines.findIndex((l) => l.includes("@observablehq/plot"));
@@ -192,10 +195,10 @@ describe("Phase 2.4: Import declarations", () => {
   });
 
   it("resolves npm: specifiers via resolveImport", () => {
-    const page = parseMarkdown("```js\nimport {csv} from \"npm:d3-dsv\";\n```\n", {md, path: "/test"});
+    const page = parseMarkdown('```js\nimport {csv} from "npm:d3-dsv";\n```\n', {md, path: "/test"});
     const result = compileMarkdownToReact(page, {
       path: "/test",
-      resolveImport: (s) => s.startsWith("npm:") ? s.slice(4) : s
+      resolveImport: (s) => (s.startsWith("npm:") ? s.slice(4) : s)
     });
     assert.ok(result.includes('"d3-dsv"'), "should resolve npm:d3-dsv to d3-dsv");
     assert.ok(!result.includes('"npm:d3-dsv"'), "should not have npm: prefix");
@@ -210,7 +213,7 @@ const chart = Plot.plot({marks: []});
     const page = parseMarkdown(source, {md, path: "/test"});
     const result = compileMarkdownToReact(page, {
       path: "/test",
-      resolveImport: (s) => s.startsWith("npm:") ? s.slice(4) : s
+      resolveImport: (s) => (s.startsWith("npm:") ? s.slice(4) : s)
     });
     assert.ok(result.includes("Cell_"), "should generate a cell component");
     assert.ok(result.includes("Plot.plot"), "should include the code that uses the import");
@@ -223,7 +226,7 @@ const chart = Plot.plot({marks: []});
 
 describe("Phase 2.5: display() transformation", () => {
   it("compiles display(expr) as a display cell", () => {
-    const page = parseMarkdown("```js\ndisplay(\"hello\")\n```\n", {md, path: "/test"});
+    const page = parseMarkdown('```js\ndisplay("hello")\n```\n', {md, path: "/test"});
     const result = compileMarkdownToReact(page, {path: "/test"});
     assert.ok(result.includes("function Cell_"), "should generate a cell component");
     assert.ok(result.includes('"hello"'), "should include the displayed expression");
@@ -280,7 +283,7 @@ describe("Phase 2.7: JSX validity of all cell types", () => {
   });
 
   it("async expression cell produces valid JSX", async () => {
-    const page = parseMarkdown("```js\nawait fetch(\"/api\")\n```\n", {md, path: "/test"});
+    const page = parseMarkdown('```js\nawait fetch("/api")\n```\n', {md, path: "/test"});
     await assertValidJsx(compileMarkdownToReact(page, {path: "/test"}), "async expression");
   });
 
@@ -295,12 +298,15 @@ describe("Phase 2.7: JSX validity of all cell types", () => {
   });
 
   it("async declaration cell produces valid JSX", async () => {
-    const page = parseMarkdown("```js\nconst data = await fetch(\"/api\").then(r => r.json());\n```\n", {md, path: "/test"});
+    const page = parseMarkdown('```js\nconst data = await fetch("/api").then(r => r.json());\n```\n', {
+      md,
+      path: "/test"
+    });
     await assertValidJsx(compileMarkdownToReact(page, {path: "/test"}), "async declaration");
   });
 
   it("display() expression cell produces valid JSX", async () => {
-    const page = parseMarkdown("```js\ndisplay(\"hello\")\n```\n", {md, path: "/test"});
+    const page = parseMarkdown('```js\ndisplay("hello")\n```\n', {md, path: "/test"});
     await assertValidJsx(compileMarkdownToReact(page, {path: "/test"}), "display expression");
   });
 
@@ -399,7 +405,15 @@ describe("Phase 7.1: File registration", () => {
     const page = parseMarkdown("# Files\n\n```js\nconst x = 1;\n```\n", {md, path: "/test"});
     const result = compileMarkdownToReact(page, {
       path: "/test",
-      files: [{name: "data.json", mimeType: "application/json", path: "/_file/data.abc.json", lastModified: 1700000000000, size: 512}]
+      files: [
+        {
+          name: "data.json",
+          mimeType: "application/json",
+          path: "/_file/data.abc.json",
+          lastModified: 1700000000000,
+          size: 512
+        }
+      ]
     });
     await assertValidJsx(result, "file registration");
   });
@@ -426,7 +440,7 @@ The value is \${x}.
   });
 
   it("does not generate inline component for static expressions", async () => {
-    const source = `The value is \${1 + 1}.`;
+    const source = "The value is ${1 + 1}.";
     const page = parseMarkdown(source, {md, path: "/test"});
     const result = compileMarkdownToReact(page, {path: "/test"});
     assert.ok(!result.includes("function Inline_"), "should not generate inline component for static expression");
@@ -450,5 +464,95 @@ First: \${a}, Second: \${b}, Combined: \${a + b}.
     const inlineMatches = result.match(/function Inline_/g);
     assert.ok(inlineMatches && inlineMatches.length >= 2, "should generate at least 2 inline components");
     await assertValidJsx(result, "multiple reactive inline expressions");
+  });
+});
+
+// =============================================================================
+// Regression: AST-driven HTML→JSX
+// =============================================================================
+
+describe("AST-driven HTML→JSX", () => {
+  it("preserves URL values containing semicolons in inline styles", async () => {
+    const source = '<div style="background: url(data:image/svg+xml;base64,PHN2Zz4=); color: red">x</div>\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(result.includes("data:image/svg+xml;base64,PHN2Zz4="), "URL with embedded semicolon must survive intact");
+    assert.ok(result.includes("color:") && result.includes('"red"'), "color rule must survive");
+    await assertValidJsx(result, "url style");
+  });
+
+  it("preserves quoted semicolons in inline style values", async () => {
+    const source = "<div style='content: \"a; b\"'>x</div>\n";
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    await assertValidJsx(result, "quoted semicolon style");
+    assert.ok(/content:[^,}]*a;\s*b/.test(result), "quoted ; in style must survive");
+  });
+
+  it("does not rewrite class= text inside fenced code blocks", async () => {
+    const source = '```html\n<a class="x">y</a>\n```\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    // The HTML inside the code block should still read class= (not className=)
+    // It will be HTML-encoded inside the <code> textContent.
+    assert.ok(
+      result.includes("class=") || result.includes("class&#x3D;") || result.includes("class=&quot;"),
+      "literal class= text inside <code> must not be rewritten"
+    );
+    await assertValidJsx(result, "code block class= text");
+  });
+
+  it("self-closes void elements driven from a fixed set", async () => {
+    const source = '<img src="x.png" alt="x">\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(/<img\b[^>]*\/>/.test(result), "img must be self-closed");
+    await assertValidJsx(result, "void element");
+  });
+});
+
+// =============================================================================
+// Regression: AST-driven import collection
+// =============================================================================
+
+describe("AST-driven import collection", () => {
+  it("preserves aliased named imports across the merge", async () => {
+    const source =
+      '```js\nimport {scaleLinear as scale} from "d3";\nscale;\n```\n\n```js\nimport {select} from "d3";\nselect;\n```\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(/scaleLinear as scale/.test(result), "alias must survive");
+    assert.ok(/\bselect\b/.test(result), "second binding must survive");
+    await assertValidJsx(result, "aliased imports");
+  });
+
+  it("merges multi-line imports with comments", async () => {
+    const source = '```js\nimport {\n  // pick these\n  foo,\n  bar\n} from "mod";\nfoo; bar;\n```\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(/\{[^}]*\bfoo\b[^}]*\bbar\b[^}]*\}/.test(result), "multi-line bindings recovered");
+    await assertValidJsx(result, "multi-line import");
+  });
+
+  it("merges default + named imports from the same specifier across cells", async () => {
+    const source =
+      '```js\nimport React from "npm:react";\nReact;\n```\n\n```js\nimport {useState} from "npm:react";\nuseState;\n```\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    // Find the user-emitted import (not the framework one) — both default and named must be present in one statement
+    assert.ok(
+      /import\s+React\s*,\s*\{[^}]*useState/.test(result) || /import\s+\{[^}]*useState[^}]*\}\s*,\s*React/.test(result),
+      "default and named must merge into one statement"
+    );
+    await assertValidJsx(result, "default+named merge");
+  });
+
+  it("namespace import supersedes named imports from the same specifier", async () => {
+    const source =
+      '```js\nimport * as d3 from "npm:d3";\nd3;\n```\n\n```js\nimport {select} from "npm:d3";\nselect;\n```\n';
+    const page = parseMarkdown(source, {md, path: "/test"});
+    const result = compileMarkdownToReact(page, {path: "/test"});
+    assert.ok(/\*\s+as\s+d3/.test(result), "namespace must survive");
+    await assertValidJsx(result, "namespace+named");
   });
 });
