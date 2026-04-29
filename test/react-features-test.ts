@@ -3,7 +3,6 @@ import {normalizeConfig} from "../src/config.js";
 import type {MarkdownPage} from "../src/markdown.js";
 import {compileMarkdownToReact} from "../src/react/compile.js";
 import {generateReactPageShell} from "../src/react/page-template.js";
-import {extractStaticHtml} from "../src/react/ssr.js";
 
 // =============================================================================
 // Search integration
@@ -83,59 +82,11 @@ describe("Granular HMR in React mode", () => {
 });
 
 // =============================================================================
-// SSG (static HTML extraction)
+// CSR (no SSR / no SSG)
 // =============================================================================
 
-describe("SSG static HTML extraction", () => {
-  it("extracts static HTML body from a markdown page", () => {
-    const page = {
-      body: '<h1>Hello</h1>\n<p>World</p>\n<!--:cell1:--><div class="observablehq">code cell</div>',
-      title: "Test",
-      head: null,
-      header: null,
-      footer: null,
-      code: [],
-      data: {toc: {show: true, label: "Contents"}, sql: {}},
-      style: null
-    } as unknown as MarkdownPage;
-
-    const html = extractStaticHtml(page);
-    assert.ok(html.includes("<h1>Hello</h1>"), "should preserve static headings");
-    assert.ok(html.includes("<p>World</p>"), "should preserve static paragraphs");
-    assert.ok(!html.includes("<!--:cell1:-->"), "should remove cell markers");
-  });
-
-  it("returns empty string for a page with only code cells", () => {
-    const page = {
-      body: '<!--:cell1:--><div class="observablehq">code only</div>',
-      title: "Test",
-      head: null,
-      header: null,
-      footer: null,
-      code: [],
-      data: {toc: {show: true, label: "Contents"}, sql: {}},
-      style: null
-    } as unknown as MarkdownPage;
-
-    const html = extractStaticHtml(page);
-    assert.ok(!html.includes("observablehq"), "should not contain cell content");
-  });
-
-  it("build shell uses createRoot even when bodyHtml is provided", () => {
-    const html = generateReactPageShell({
-      title: "Test",
-      stylesheets: [],
-      modulePreloads: [],
-      pageModulePath: "/_observablehq/react-pages/test.js",
-      bodyHtml: "<h1>Hello</h1>",
-      isPreview: false
-    });
-    assert.ok(html.includes("createRoot"), "should use createRoot (not hydrateRoot) for SSG");
-    assert.ok(!html.includes("hydrateRoot"), "should not use hydrateRoot");
-    assert.ok(html.includes("<h1>Hello</h1>"), "should include static HTML in root for fast first-paint");
-  });
-
-  it("build shell uses createRoot when no bodyHtml", () => {
+describe("CSR-only rendering", () => {
+  it("build shell uses createRoot and renders into an empty root", () => {
     const html = generateReactPageShell({
       title: "Test",
       stylesheets: [],
@@ -143,8 +94,9 @@ describe("SSG static HTML extraction", () => {
       pageModulePath: "/_observablehq/react-pages/test.js",
       isPreview: false
     });
-    assert.ok(html.includes("createRoot"), "should use createRoot for CSR");
+    assert.ok(html.includes("createRoot"), "should use createRoot");
     assert.ok(!html.includes("hydrateRoot"), "should not use hydrateRoot");
+    assert.ok(/<div id="observablehq-root"><\/div>/.test(html), "root container must be empty (CSR)");
   });
 });
 
@@ -377,11 +329,11 @@ describe("React.StrictMode support", () => {
 });
 
 // =============================================================================
-// Enhanced SSR (loading indicator removal)
+// observablehq-loading handling in compiled output
 // =============================================================================
 
-describe("Enhanced SSR extraction", () => {
-  it("strips observablehq-loading elements", () => {
+describe("observablehq-loading handling", () => {
+  it("does not leave observablehq-loading elements in compiled JSX", () => {
     const page = {
       body: "<h1>Title</h1>\n<observablehq-loading></observablehq-loading><!--:cell1:-->\n<p>Content</p>",
       title: "Test",
@@ -390,10 +342,11 @@ describe("Enhanced SSR extraction", () => {
       footer: null,
       code: [],
       data: {toc: {show: true, label: "Contents"}, sql: {}},
-      style: null
+      style: null,
+      path: "/test"
     } as unknown as MarkdownPage;
 
-    const html = extractStaticHtml(page);
+    const html = compileMarkdownToReact(page, {path: "/test"});
     assert.ok(!html.includes("observablehq-loading"), "should remove loading indicators");
     assert.ok(html.includes("<h1>Title</h1>"), "should preserve headings");
     assert.ok(html.includes("<p>Content</p>"), "should preserve paragraphs");
