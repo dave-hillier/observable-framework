@@ -6,6 +6,7 @@ const packages: [name: string, {version: string; contents?: string; dependencies
   ["@observablehq/inputs", {version: "0.10.6"}],
   ["@observablehq/plot", {version: "0.6.11"}],
   ["@observablehq/sample-datasets", {version: "1.0.1"}],
+  ["@observablehq/stdlib", {version: "5.13.0"}],
   ["@viz-js/viz", {version: "3.2.3"}],
   ["apache-arrow", {version: "15.0.1"}],
   ["arquero", {version: "5.3.0"}],

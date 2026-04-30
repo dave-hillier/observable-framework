@@ -43,7 +43,10 @@ describe("getImplicitInputImports(inputs)", () => {
 
 describe("getImplicitStylesheets(imports)", () => {
   it("supports known imports", () => {
-    assert.deepStrictEqual(getImplicitStylesheets(["npm:@observablehq/inputs"]), new Set(["observablehq:stdlib/inputs.css"])); // prettier-ignore
+    // Note: npm:@observablehq/inputs no longer pulls in observablehq:stdlib/inputs.css
+    // after the React port — input components ship their own CSS via the React
+    // input components.
+    assert.deepStrictEqual(getImplicitStylesheets(["npm:@observablehq/inputs"]), new Set()); // prettier-ignore
     assert.deepStrictEqual(getImplicitStylesheets(["npm:katex"]), new Set(["npm:katex/dist/katex.min.css"])); // prettier-ignore
     assert.deepStrictEqual(getImplicitStylesheets(["npm:leaflet"]), new Set(["npm:leaflet/dist/leaflet.css"])); // prettier-ignore
     assert.deepStrictEqual(getImplicitStylesheets(["npm:mapbox-gl"]), new Set(["npm:mapbox-gl/dist/mapbox-gl.css"])); // prettier-ignore
@@ -69,7 +72,8 @@ describe("getImplicitDependencies(imports)", () => {
   it("supports known imports", () => {
     assert.deepStrictEqual(getImplicitDependencies(["npm:@observablehq/dot"]), new Set(["npm:@viz-js/viz"]));
     assert.deepStrictEqual(getImplicitDependencies(["npm:@observablehq/duckdb"]), new Set(["npm:@duckdb/duckdb-wasm"]));
-    assert.deepStrictEqual(getImplicitDependencies(["npm:@observablehq/inputs"]), new Set(["npm:htl", "npm:isoformat"])); // prettier-ignore
+    // Note: npm:isoformat dropped from inputs deps in the React port; htl remains.
+    assert.deepStrictEqual(getImplicitDependencies(["npm:@observablehq/inputs"]), new Set(["npm:htl"])); // prettier-ignore
     assert.deepStrictEqual(getImplicitDependencies(["npm:@observablehq/mermaid"]), new Set(["npm:mermaid"]));
     assert.deepStrictEqual(getImplicitDependencies(["npm:@observablehq/sqlite"]), new Set(["npm:sql.js"]));
     assert.deepStrictEqual(getImplicitDependencies(["npm:@observablehq/tex"]), new Set(["npm:katex"]));

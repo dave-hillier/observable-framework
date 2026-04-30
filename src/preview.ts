@@ -128,6 +128,14 @@ export class PreviewServer {
         end(req, res, await searchIndex(config), "application/json");
       } else if ((match = /^\/_observablehq\/theme-(?<theme>[\w-]+(,[\w-]+)*)?\.css$/.exec(pathname))) {
         end(req, res, await bundleStyles({theme: match.groups!.theme?.split(",") ?? []}), "text/css");
+      } else if (pathname.startsWith("/_observablehq/react-pages/") && pathname.endsWith(".js")) {
+        // Serve compiled React page modules on-demand. Must precede the
+        // generic /_observablehq/*.js branch below.
+        const pagePath = pathname.slice("/_observablehq/react-pages".length, -".js".length);
+        const options = {...config, path: pagePath, preview: true as const};
+        const parse = await loaders.loadPage(pagePath, options);
+        const moduleCode = await renderReactPageModule(parse, options);
+        end(req, res, moduleCode, "text/javascript");
       } else if (pathname.startsWith("/_observablehq/") && pathname.endsWith(".js")) {
         const path = getClientPath(pathname.slice("/_observablehq/".length));
         const options =
@@ -175,13 +183,6 @@ export class PreviewServer {
         const loader = loaders.find(path);
         if (!loader) throw enoent(path);
         send(req, await loader.load(), {root}).pipe(res);
-      } else if (pathname.startsWith("/_observablehq/react-pages/") && pathname.endsWith(".js")) {
-        // Serve compiled React page modules on-demand
-        const pagePath = pathname.slice("/_observablehq/react-pages".length, -".js".length);
-        const options = {...config, path: pagePath, preview: true as const};
-        const parse = await loaders.loadPage(pagePath, options);
-        const moduleCode = await renderReactPageModule(parse, options);
-        end(req, res, moduleCode, "text/javascript");
       } else {
         if ((pathname = normalize(pathname)).startsWith("..")) throw new Error("Invalid path: " + pathname);
 

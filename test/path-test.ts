@@ -163,8 +163,11 @@ describe("within(root, path)", () => {
     assert.strictEqual(within(process.cwd(), "./foo/../dist/"), true, "./foo/../dist/");
     assert.strictEqual(within(process.cwd(), "foo/bar"), true, "foo/bar");
     assert.strictEqual(within(process.cwd(), "foo/bar"), true, "foo/bar");
-    assert.strictEqual(within(process.cwd(), "../framework/dist"), true, "../framework/dist");
-    assert.strictEqual(within(process.cwd(), "../framework2/dist"), false, "../framework2/dist");
+    // Reference the current working directory's basename so the test works in
+    // any clone (observable-framework, framework, etc.).
+    const cwdBase = process.cwd().split("/").pop()!;
+    assert.strictEqual(within(process.cwd(), `../${cwdBase}/dist`), true, `../${cwdBase}/dist`);
+    assert.strictEqual(within(process.cwd(), `../${cwdBase}-other/dist`), false, `../${cwdBase}-other/dist`);
     assert.strictEqual(within(process.cwd(), "../dist"), false, "../dist");
     assert.strictEqual(within(process.cwd(), "/dist"), false, "/dist");
   });

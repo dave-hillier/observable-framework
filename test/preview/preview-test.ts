@@ -43,9 +43,16 @@ describe("preview server", () => {
   });
 
   it("serves nested pages", async () => {
-    const res = await chai.request(testServerUrl).get("/code/code");
-    expect(res).to.have.status(200);
-    expect(res.text).to.have.string("This text is not visible by default.");
+    // The shell is CSR-only after the React port — body content is in the
+    // compiled page module, not in the initial HTML response. Verify the
+    // shell loads and the compiled module contains the expected content.
+    const shellRes = await chai.request(testServerUrl).get("/code/code");
+    expect(shellRes).to.have.status(200);
+    expect(shellRes.text).to.have.string("/_observablehq/react-pages/code/code.js");
+
+    const moduleRes = await chai.request(testServerUrl).get("/_observablehq/react-pages/code/code.js");
+    expect(moduleRes).to.have.status(200);
+    expect(moduleRes.text).to.have.string("This text is not visible by default.");
   });
 
   // TODO - tests for /_observablehq and data loader requests

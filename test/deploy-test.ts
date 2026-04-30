@@ -1010,10 +1010,11 @@ describe("deploy", () => {
       .handleGetProject(DEPLOY_CONFIG)
       .handlePostDeploy({projectId: DEPLOY_CONFIG.projectId, deployId})
       .expectFileUpload({deployId, path: "index.html", action: "upload"})
-      .expectFileUpload({deployId, path: "_observablehq/client.00000001.js", action: "skip"})
-      .expectFileUpload({deployId, path: "_observablehq/runtime.00000002.js", action: "skip"})
-      .expectFileUpload({deployId, path: "_observablehq/stdlib.00000003.js", action: "skip"})
-      .expectFileUpload({deployId, path: "_observablehq/theme-air,near-midnight.00000004.css", action: "skip"})
+      .expectFileUpload({deployId, path: "_observablehq/framework-react.00000001.js", action: "skip"})
+      .expectFileUpload({deployId, path: "_observablehq/react-bootstrap.00000002.js", action: "skip"})
+      .expectFileUpload({deployId, path: "_observablehq/react-dom-bootstrap.00000003.js", action: "skip"})
+      .expectFileUpload({deployId, path: "_observablehq/react-pages/index.00000004.js", action: "skip"})
+      .expectFileUpload({deployId, path: "_observablehq/theme-air,near-midnight.00000005.css", action: "skip"})
       .handlePostDeployUploaded({deployId})
       .handleGetDeploy({deployId, deployStatus: "uploaded"})
       .start();
@@ -1040,7 +1041,7 @@ describe("deploy", () => {
       {method: "message", message: "Hashing local files"},
       {method: "message", message: "Sending file manifest to server"},
       {method: "message", message: "1 / 1 uploading index.html"},
-      {method: "stop", message: "1 uploaded, 4 unchanged, 5 total."}
+      {method: "stop", message: "1 uploaded, 5 unchanged, 6 total."}
     ]);
   });
 });
