@@ -1,3 +1,6 @@
+import type {Node as AcornNode, ImportDeclaration, Program} from "acorn";
+import {simple} from "acorn-walk";
+import {JSDOM} from "jsdom";
 import type {MarkdownPage} from "../markdown.js";
 import type {Params} from "../route.js";
 import {compileCellToComponent, compileInlineCellToExpression} from "./cell-transform.js";
@@ -60,11 +63,10 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
   // Identify import-only cells (cells that are purely import declarations)
   const isImportOnly = (cell: (typeof cellInfos)[0]): boolean => {
     if (cell.imports.length === 0) return false;
-    // Check if the source only contains import statements (no other code)
-    const withoutImports = cell.source
-      .replace(/import\s+(?:(?:\{[^}]+\}|\*\s+as\s+\w+|\w+)(?:\s*,\s*\{[^}]+\})?)\s+from\s+["'][^"']+["']\s*;?/g, "")
-      .trim();
-    return withoutImports === "";
+    const original = code.find((c) => c.id === cell.id);
+    if (!original || original.node.expression) return false;
+    const program = original.node.body as Program;
+    return program.body.every((stmt) => stmt.type === "ImportDeclaration");
   };
 
   // Determine which variables are declared across all cells (excluding import-only)
@@ -195,79 +197,70 @@ export function compileMarkdownToReact(page: MarkdownPage, options: CompileOptio
 }
 
 /**
- * Collects import statements from code cells using the parsed AST import info.
- * Merges bindings from the same specifier across different cells so that
- * e.g. `import {foo} from "d3"` in one cell and `import {bar} from "d3"` in
- * another produce a single `import {foo, bar} from "d3"` statement.
+ * Collects import statements from code cells using each cell's acorn AST.
+ * Merges bindings from the same specifier across cells so that
+ * `import {foo} from "d3"` in one cell and `import {bar} from "d3"` in another
+ * produce a single `import {foo, bar} from "d3"`. Aliases are preserved; a
+ * namespace import supersedes named imports from the same specifier.
  */
 function collectCellImports(code: MarkdownPage["code"], resolveImport: (specifier: string) => string): string[] {
-  // Track per-specifier: default import name, namespace import, named bindings
-  const specifierInfo = new Map<string, {defaultImport: string | null; namespace: string | null; named: Set<string>}>();
+  interface SpecifierInfo {
+    defaultImport: string | null;
+    namespace: string | null;
+    named: Map<string, string>;
+  }
+  const specifierInfo = new Map<string, SpecifierInfo>();
+
+  function info(name: string): SpecifierInfo {
+    let entry = specifierInfo.get(name);
+    if (!entry) specifierInfo.set(name, (entry = {defaultImport: null, namespace: null, named: new Map()}));
+    return entry;
+  }
 
   for (const cell of code) {
-    for (const imp of cell.node.imports) {
-      if (imp.method !== "static") continue;
-
-      if (!specifierInfo.has(imp.name)) {
-        specifierInfo.set(imp.name, {defaultImport: null, namespace: null, named: new Set()});
-      }
-      const info = specifierInfo.get(imp.name)!;
-
-      // Extract binding info from the import statement text
-      const importRegex = new RegExp(`import\\s+(.+?)\\s+from\\s+["']${escapeRegex(imp.name)}["']`);
-      const match = importRegex.exec(cell.node.input);
-      if (!match) continue;
-
-      const clause = match[1].trim();
-
-      // Namespace import: import * as X from "..."
-      const nsMatch = clause.match(/^\*\s+as\s+(\w+)$/);
-      if (nsMatch) {
-        info.namespace = nsMatch[1];
-        continue;
-      }
-
-      // Parse default and named parts
-      // Patterns: "X", "{ a, b }", "X, { a, b }"
-      const parts = clause.match(/^(\w+)?(?:\s*,\s*)?\{([^}]*)\}$/);
-      if (parts) {
-        if (parts[1]) info.defaultImport = parts[1];
-        if (parts[2]) {
-          for (const binding of parts[2].split(",")) {
-            const trimmed = binding.trim();
-            if (trimmed) info.named.add(trimmed);
+    if (cell.node.expression) continue; // expressions can't contain ImportDeclarations
+    simple(cell.node.body as AcornNode, {
+      ImportDeclaration(node: ImportDeclaration) {
+        const source = node.source;
+        if (!source || typeof source.value !== "string") return;
+        const entry = info(source.value);
+        for (const spec of node.specifiers) {
+          if (spec.type === "ImportDefaultSpecifier") {
+            entry.defaultImport = spec.local.name;
+          } else if (spec.type === "ImportNamespaceSpecifier") {
+            entry.namespace = spec.local.name;
+          } else if (spec.type === "ImportSpecifier") {
+            const imported =
+              spec.imported.type === "Identifier"
+                ? spec.imported.name
+                : String((spec.imported as {value: string}).value);
+            entry.named.set(spec.local.name, imported);
           }
         }
-      } else if (/^\w+$/.test(clause)) {
-        // Default-only import: import X from "..."
-        info.defaultImport = clause;
       }
-    }
+    });
   }
 
-  // Build merged import statements
   const imports: string[] = [];
-  for (const [specifier, info] of specifierInfo) {
+  for (const [specifier, entry] of specifierInfo) {
     const resolved = resolveImport(specifier);
-    // Namespace import supersedes named imports
-    if (info.namespace) {
-      const parts = info.defaultImport ? `${info.defaultImport}, * as ${info.namespace}` : `* as ${info.namespace}`;
-      imports.push(`import ${parts} from ${JSON.stringify(resolved)};`);
+    if (entry.namespace) {
+      const head = entry.defaultImport ? `${entry.defaultImport}, * as ${entry.namespace}` : `* as ${entry.namespace}`;
+      imports.push(`import ${head} from ${JSON.stringify(resolved)};`);
     } else {
       const parts: string[] = [];
-      if (info.defaultImport) parts.push(info.defaultImport);
-      if (info.named.size > 0) parts.push(`{${Array.from(info.named).join(", ")}}`);
-      if (parts.length > 0) {
-        imports.push(`import ${parts.join(", ")} from ${JSON.stringify(resolved)};`);
+      if (entry.defaultImport) parts.push(entry.defaultImport);
+      if (entry.named.size > 0) {
+        const bindings: string[] = [];
+        for (const [local, imported] of entry.named) {
+          bindings.push(local === imported ? local : `${imported} as ${local}`);
+        }
+        parts.push(`{${bindings.join(", ")}}`);
       }
+      if (parts.length > 0) imports.push(`import ${parts.join(", ")} from ${JSON.stringify(resolved)};`);
     }
   }
-
   return imports;
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
@@ -287,156 +280,254 @@ function buildPageBody(
   importOnlyCellIds: Set<string>,
   allDeclarations: Set<string>
 ): {body: string; inlineComponents: string[]} {
-  let body = page.body;
   const inlineComponents: string[] = [];
+  const cellInfoById = new Map(cellInfos.map((c) => [c.id, c]));
 
+  // Pre-build the inline cell JSX (component or expression) so the walker can
+  // emit it when it sees the inline-cell node sequence.
+  const inlineCellJsx = new Map<string, string>();
   for (const cell of cellInfos) {
-    if (cell.mode === "inline") {
-      // Replace inline expression markers with JSX expression
-      const inlineExpr = compileInlineCellToExpression(cell.source, cell.references, allDeclarations);
-      const pattern = new RegExp(`<observablehq-loading><\\/observablehq-loading><!--:${cell.id}:-->`, "g");
-      // Check if this is a reactive inline expression (contains cell variable references)
-      const inlineMatch = inlineExpr.match(/^__INLINE_CELL__:(.*?):__EXPR__([\s\S]*)__END__$/);
-      if (inlineMatch) {
-        const refs = JSON.parse(inlineMatch[1]) as string[];
-        const expr = inlineMatch[2];
-        // Generate an inline component that reads cell values
-        const componentName = `Inline_${cell.id}`;
-        inlineComponents.push(
-          `function ${componentName}() {\n` +
-            refs.map((r) => `  const ${r} = useCellInput(${JSON.stringify(r)});`).join("\n") +
-            `\n  return <>{${expr}}</>;\n}`
-        );
-        body = body.replace(pattern, `<${componentName} />`);
-      } else {
-        body = body.replace(pattern, `{${inlineExpr}}`);
-      }
-    } else if (importOnlyCellIds.has(cell.id)) {
-      // Import-only cells: remove the entire block div
-      const blockPattern = new RegExp(
-        `<div className="observablehq observablehq--block">[\\s\\S]*?<!--:${cell.id}:-->[\\s\\S]*?<\\/div>`,
-        "g"
+    if (cell.mode !== "inline") continue;
+    const inlineExpr = compileInlineCellToExpression(cell.source, cell.references, allDeclarations);
+    const inlineMatch = inlineExpr.match(/^__INLINE_CELL__:(.*?):__EXPR__([\s\S]*)__END__$/);
+    if (inlineMatch) {
+      const refs = JSON.parse(inlineMatch[1]) as string[];
+      const expr = inlineMatch[2];
+      const componentName = `Inline_${cell.id}`;
+      inlineComponents.push(
+        `function ${componentName}() {\n` +
+          refs.map((r) => `  const ${r} = useCellInput(${JSON.stringify(r)});`).join("\n") +
+          `\n  return <>{${expr}}</>;\n}`
       );
-      body = body.replace(blockPattern, "");
-      // Also try the original class= form (before htmlToJsx)
-      const blockPatternOrig = new RegExp(
-        `<div class="observablehq observablehq--block">[\\s\\S]*?<!--:${cell.id}:-->[\\s\\S]*?<\\/div>`,
-        "g"
-      );
-      body = body.replace(blockPatternOrig, "");
+      inlineCellJsx.set(cell.id, `<${componentName} />`);
     } else {
-      // Replace block cell markers with component references.
-      // Two patterns: with loading indicator (expression cells) and without (declaration cells)
-      const blockPattern = new RegExp(
-        `<div class="observablehq observablehq--block">[\\s\\S]*?<!--:${cell.id}:-->[\\s\\S]*?<\\/div>`,
-        "g"
-      );
-      body = body.replace(
-        blockPattern,
-        `<ErrorBoundary><Suspense fallback={<Loading />}><Cell_${cell.id} /></Suspense></ErrorBoundary>`
-      );
+      inlineCellJsx.set(cell.id, `{${inlineExpr}}`);
     }
   }
 
-  // Convert HTML to JSX-compatible format
-  body = htmlToJsx(body);
+  const dom = new JSDOM(`<!doctype html><body>${page.body}</body>`);
+  const body = dom.window.document.body;
+  const out = serializeChildrenToJsx(body, {cellInfoById, importOnlyCellIds, inlineCellJsx});
 
-  // Wrap in a fragment
-  const wrappedBody = `        <>\n${body
+  const wrappedBody = `        <>\n${out
     .split("\n")
     .map((line) => `          ${line}`)
     .join("\n")}\n        </>`;
   return {body: wrappedBody, inlineComponents};
 }
 
-/**
- * Convert an inline CSS style string to a JSX style object literal.
- * e.g., "color: red; font-size: 14px" → '{color: "red", fontSize: "14px"}'
- */
-function cssStringToJsxObject(css: string): string {
-  const props = css
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((decl) => {
-      const colon = decl.indexOf(":");
-      if (colon === -1) return null;
-      const prop = decl.slice(0, colon).trim();
-      const value = decl.slice(colon + 1).trim();
-      // Convert kebab-case to camelCase
-      const camelProp = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-      return `${camelProp}: ${JSON.stringify(value)}`;
-    })
-    .filter(Boolean);
+interface JsxWalkContext {
+  cellInfoById: Map<string, {id: string; mode: string}>;
+  importOnlyCellIds: Set<string>;
+  inlineCellJsx: Map<string, string>;
+}
+
+const VOID_ELEMENTS = new Set([
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr"
+]);
+
+const ATTR_RENAMES: Record<string, string> = {
+  class: "className",
+  for: "htmlFor",
+  tabindex: "tabIndex",
+  colspan: "colSpan",
+  rowspan: "rowSpan",
+  maxlength: "maxLength",
+  readonly: "readOnly",
+  crossorigin: "crossOrigin",
+  srcset: "srcSet",
+  cellpadding: "cellPadding",
+  cellspacing: "cellSpacing",
+  datetime: "dateTime",
+  accesskey: "accessKey",
+  autocomplete: "autoComplete",
+  "stroke-width": "strokeWidth",
+  "stroke-linecap": "strokeLinecap",
+  "stroke-linejoin": "strokeLinejoin",
+  "stroke-opacity": "strokeOpacity",
+  "stroke-miterlimit": "strokeMiterlimit",
+  "stroke-dasharray": "strokeDasharray",
+  "stroke-dashoffset": "strokeDashoffset",
+  "fill-opacity": "fillOpacity",
+  "fill-rule": "fillRule",
+  "clip-path": "clipPath",
+  "clip-rule": "clipRule",
+  "font-size": "fontSize",
+  "font-family": "fontFamily",
+  "font-weight": "fontWeight",
+  "text-anchor": "textAnchor",
+  "dominant-baseline": "dominantBaseline",
+  "alignment-baseline": "alignmentBaseline",
+  "color-interpolation-filters": "colorInterpolationFilters",
+  "marker-start": "markerStart",
+  "marker-mid": "markerMid",
+  "marker-end": "markerEnd",
+  "xlink:href": "xlinkHref"
+};
+
+function parseCellMarker(comment: Comment): string | null {
+  const data = comment.data;
+  if (data.length < 3 || data[0] !== ":" || data[data.length - 1] !== ":") return null;
+  return data.slice(1, -1);
+}
+
+function cellPlaceholderJsx(cellId: string, ctx: JsxWalkContext): string {
+  const info = ctx.cellInfoById.get(cellId);
+  if (!info) return ""; // unknown id (defensive)
+  if (info.mode === "inline") return ctx.inlineCellJsx.get(cellId) ?? "";
+  if (ctx.importOnlyCellIds.has(cellId)) return "";
+  return `<ErrorBoundary><Suspense fallback={<Loading />}><Cell_${cellId} /></Suspense></ErrorBoundary>`;
+}
+
+function isObservableBlockDiv(el: Element): boolean {
+  if (el.tagName.toLowerCase() !== "div") return false;
+  const cls = el.getAttribute("class") ?? "";
+  return /\bobservablehq--block\b/.test(cls);
+}
+
+function findCellMarkerInDescendants(el: Element): string | null {
+  const w = el.ownerDocument!.createTreeWalker(el, 0x80 /* SHOW_COMMENT */);
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    const id = parseCellMarker(n as Comment);
+    if (id) return id;
+  }
+  return null;
+}
+
+function findInlineLoadingPair(el: Element): string | null {
+  if (el.tagName.toLowerCase() !== "observablehq-loading") return null;
+  const next = el.nextSibling;
+  if (next && next.nodeType === 8 /* COMMENT */) {
+    return parseCellMarker(next as Comment);
+  }
+  return null;
+}
+
+function serializeChildrenToJsx(parent: Node, ctx: JsxWalkContext): string {
+  let out = "";
+  let child: ChildNode | null = (parent as ParentNode).firstChild as ChildNode | null;
+  while (child) {
+    const next: ChildNode | null = child.nextSibling as ChildNode | null;
+    out += serializeNodeToJsx(child, ctx, () => {
+      // skip-next callback used by inline-loading consumer
+      // advance `next` past the consumed comment
+    });
+    // Inline-loading consumes its trailing comment sibling: detect that case
+    // by checking whether the just-emitted node was an observablehq-loading
+    // immediately followed by a cell-marker comment.
+    if (
+      child.nodeType === 1 &&
+      (child as Element).tagName.toLowerCase() === "observablehq-loading" &&
+      next &&
+      next.nodeType === 8 &&
+      parseCellMarker(next as Comment)
+    ) {
+      child = next.nextSibling as ChildNode | null;
+    } else {
+      child = next;
+    }
+  }
+  return out;
+}
+
+function serializeNodeToJsx(node: Node, ctx: JsxWalkContext, _skipNext: () => void): string {
+  if (node.nodeType === 3 /* TEXT_NODE */) {
+    return jsxText((node as Text).data);
+  }
+  if (node.nodeType === 8 /* COMMENT_NODE */) {
+    const id = parseCellMarker(node as Comment);
+    if (id) return cellPlaceholderJsx(id, ctx);
+    return ""; // strip non-marker comments
+  }
+  if (node.nodeType !== 1 /* ELEMENT_NODE */) return "";
+
+  const el = node as Element;
+
+  // observablehq-loading paired with a marker comment → inline cell jsx
+  const inlineId = findInlineLoadingPair(el);
+  if (inlineId) {
+    return cellPlaceholderJsx(inlineId, ctx);
+  }
+
+  // Observable block div containing a marker comment → cell placeholder
+  if (isObservableBlockDiv(el)) {
+    const id = findCellMarkerInDescendants(el);
+    if (id) return cellPlaceholderJsx(id, ctx);
+  }
+
+  // Standard element serialization
+  const tag = el.tagName.toLowerCase();
+  const attrs = serializeAttributes(el);
+  if (VOID_ELEMENTS.has(tag)) {
+    return `<${tag}${attrs} />`;
+  }
+  const children = serializeChildrenToJsx(el, ctx);
+  return `<${tag}${attrs}>${children}</${tag}>`;
+}
+
+function serializeAttributes(el: Element): string {
+  let out = "";
+  for (const attr of Array.from(el.attributes)) {
+    const name = attr.name;
+    const value = attr.value;
+    if (name === "style") {
+      out += ` style={${cssDeclarationsToJsx(el)}}`;
+      continue;
+    }
+    const jsxName = ATTR_RENAMES[name] ?? name;
+    if (value === "") {
+      // Boolean-like attribute; emit name only is invalid in JSX, so emit ={true}
+      out += ` ${jsxName}`;
+    } else {
+      out += ` ${jsxName}=${JSON.stringify(value)}`;
+    }
+  }
+  return out;
+}
+
+function cssDeclarationsToJsx(el: Element): string {
+  // Use jsdom's CSSStyleDeclaration to enumerate properties. This handles
+  // url(...), quoted values, and embedded semicolons correctly without
+  // splitting on `;`.
+  const style = (el as HTMLElement).style;
+  const props: string[] = [];
+  for (let i = 0; i < style.length; i++) {
+    const prop = style.item(i);
+    const value = style.getPropertyValue(prop);
+    const priority = style.getPropertyPriority(prop);
+    const key = camelizeCssProperty(prop);
+    const fullValue = priority ? `${value} !${priority}` : value;
+    props.push(`${key}: ${JSON.stringify(fullValue)}`);
+  }
   return `{${props.join(", ")}}`;
 }
 
-/**
- * HTML to JSX transformation.
- * Handles attribute renames, void element self-closing, inline style
- * conversion, and HTML comment stripping.
- */
-function htmlToJsx(html: string): string {
-  return (
-    html
-      // Strip HTML comments (cell markers are already replaced before this runs)
-      .replace(/<!--(?!:)[^]*?-->/g, "")
+function camelizeCssProperty(prop: string): string {
+  // Custom properties (--foo) stay as-is, but they need to be quoted as keys.
+  if (prop.startsWith("--")) return JSON.stringify(prop);
+  return prop.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+}
 
-      // --- HTML attribute renames ---
-      .replace(/\bclass=/g, "className=")
-      .replace(/\bfor=/g, "htmlFor=")
-      .replace(/\btabindex=/g, "tabIndex=")
-      .replace(/\bcolspan=/g, "colSpan=")
-      .replace(/\browspan=/g, "rowSpan=")
-      .replace(/\bmaxlength=/g, "maxLength=")
-      .replace(/\breadonly\b/g, "readOnly")
-      .replace(/\bcrossorigin=/g, "crossOrigin=")
-      .replace(/\bsrcset=/g, "srcSet=")
-      .replace(/\bcellpadding=/g, "cellPadding=")
-      .replace(/\bcellspacing=/g, "cellSpacing=")
-      .replace(/\bdatetime=/g, "dateTime=")
-      .replace(/\baccesskey=/g, "accessKey=")
-      .replace(/\bautocomplete=/g, "autoComplete=")
-
-      // --- SVG attribute renames ---
-      .replace(/\bstroke-width=/g, "strokeWidth=")
-      .replace(/\bstroke-linecap=/g, "strokeLinecap=")
-      .replace(/\bstroke-linejoin=/g, "strokeLinejoin=")
-      .replace(/\bstroke-opacity=/g, "strokeOpacity=")
-      .replace(/\bstroke-miterlimit=/g, "strokeMiterlimit=")
-      .replace(/\bstroke-dasharray=/g, "strokeDasharray=")
-      .replace(/\bstroke-dashoffset=/g, "strokeDashoffset=")
-      .replace(/\bfill-opacity=/g, "fillOpacity=")
-      .replace(/\bfill-rule=/g, "fillRule=")
-      .replace(/\bclip-path=/g, "clipPath=")
-      .replace(/\bclip-rule=/g, "clipRule=")
-      .replace(/\bfont-size=/g, "fontSize=")
-      .replace(/\bfont-family=/g, "fontFamily=")
-      .replace(/\bfont-weight=/g, "fontWeight=")
-      .replace(/\btext-anchor=/g, "textAnchor=")
-      .replace(/\bdominant-baseline=/g, "dominantBaseline=")
-      .replace(/\balignment-baseline=/g, "alignmentBaseline=")
-      .replace(/\bcolor-interpolation-filters=/g, "colorInterpolationFilters=")
-      .replace(/\bmarker-start=/g, "markerStart=")
-      .replace(/\bmarker-mid=/g, "markerMid=")
-      .replace(/\bmarker-end=/g, "markerEnd=")
-      .replace(/\bxlink:href=/g, "xlinkHref=")
-
-      // --- Inline style string → JSX style object ---
-      .replace(/\bstyle="([^"]*)"/g, (_match, css: string) => `style={${cssStringToJsxObject(css)}}`)
-
-      // --- Void element self-closing ---
-      .replace(/<br\s*>/g, "<br />")
-      .replace(/<hr\s*>/g, "<hr />")
-      .replace(/<img\s([^>]*)>/g, "<img $1 />")
-      .replace(/<input\s([^>]*)>/g, "<input $1 />")
-      .replace(/<source\s([^>]*)>/g, "<source $1 />")
-      .replace(/<col\s([^>]*)>/g, "<col $1 />")
-      .replace(/<area\s([^>]*)>/g, "<area $1 />")
-      .replace(/<embed\s([^>]*)>/g, "<embed $1 />")
-      .replace(/<track\s([^>]*)>/g, "<track $1 />")
-      .replace(/<wbr\s*>/g, "<wbr />")
-      .replace(/<link\s([^>]*)>/g, "<link $1 />")
-      .replace(/<meta\s([^>]*)>/g, "<meta $1 />")
-  );
+function jsxText(text: string): string {
+  if (text === "") return "";
+  // JSX text cannot contain `<`, `>`, `{`, `}`. Wrap any text containing these
+  // in a JSX expression string. This also prevents JSX from interpreting raw
+  // ampersand entities — JSX will render the literal characters verbatim.
+  if (/[<>{}]/.test(text)) {
+    return `{${JSON.stringify(text)}}`;
+  }
+  return text;
 }

@@ -15,7 +15,6 @@ export function generateReactPageShell(options: {
   stylesheets: string[];
   modulePreloads: string[];
   pageModulePath: string;
-  bodyHtml?: string; // Pre-rendered HTML for SSG (fast first-paint only; not hydrated since React's tree won't match)
   base?: string;
   isPreview?: boolean;
   hash?: string; // Content hash for HMR change detection
@@ -31,7 +30,6 @@ export function generateReactPageShell(options: {
     stylesheets,
     modulePreloads,
     pageModulePath,
-    bodyHtml,
     base = "/",
     isPreview,
     head,
@@ -54,7 +52,7 @@ ${modulePreloads.map((href) => `<link rel="modulepreload" href="${escapeHtml(hre
 ${head ?? ""}
 </head>
 <body>
-<div id="observablehq-root">${bodyHtml ?? ""}</div>
+<div id="observablehq-root"></div>
 <script type="module">
 import React from "${escapeJs(reactBootstrap)}";
 import ReactDOM from "${escapeJs(reactDomBootstrap)}";

@@ -14,6 +14,3 @@ export {
   generateRouteDefinitionsModule
 } from "./render.js";
 export type {ReactRenderOptions} from "./render.js";
-
-// SSR
-export {extractStaticHtml, renderPageToString} from "./ssr.js";
